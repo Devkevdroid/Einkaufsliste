@@ -1,0 +1,14 @@
+@import 'tailwindcss';
+
+/* Dunkelmodus wird über die Klasse "dark" am <html>-Element gesteuert (siehe src/lib/theme.ts). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply min-h-dvh bg-stone-50 text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100;
+  }
+}
