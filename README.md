@@ -17,7 +17,7 @@ Hosting auf Vercel. Alles im kostenlosen Tarif.
 | 4 | Rezeptliste mit Suche | ✅ fertig |
 | 5 | Wochenplan | ✅ fertig |
 | 6 | Einkaufsliste mit Echtzeit-Sync | ✅ fertig |
-| 7 | PWA (installierbar, offline) & Deployment auf Vercel | ⏳ |
+| 7 | PWA (installierbar, offline) & Deployment auf Vercel | ✅ |
 
 ## Voraussetzungen
 
@@ -152,7 +152,8 @@ Datei `vercel.json` sorgt dafür, dass Adressen wie `/einkauf` auch beim Neulade
 
 Offline: Die App selbst und die Einkaufsliste funktionieren ohne Netz. Abgehakte und neue
 Artikel werden gespeichert und automatisch übertragen, sobald wieder Verbindung besteht.
-Wochenplan und Rezepte brauchen eine Verbindung.
+Wochenplan und Rezepte zeigen offline den zuletzt geladenen Stand (nur lesen; Rezeptbilder
+fehlen dann). Ändern lässt sich der Plan nur mit Verbindung.
 
 Neue Versionen lädt die App im Hintergrund; sie sind ab dem nächsten Öffnen aktiv.
 
