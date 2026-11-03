@@ -109,9 +109,33 @@ dann JSON-LD (schema.org/Recipe), zuletzt das HTML.
 ### E-Mail-Versand für weitere Personen
 
 Der eingebaute E-Mail-Versand von Supabase schickt Login-Links nur an Mitglieder deines
-Supabase-Teams und nur wenige pro Stunde. Damit weitere Personen sich anmelden können, unter
-**Authentication → Emails → SMTP Settings** einen eigenen SMTP-Server eintragen (z. B. Gmail mit
-App-Passwort).
+Supabase-Teams und nur wenige pro Stunde. Damit weitere Personen sich anmelden können, braucht
+es einen eigenen Mail-Server (SMTP). Am einfachsten mit einem Gmail-Konto (kostenlos, bis
+500 Mails pro Tag):
+
+1. Im Google-Konto die **Bestätigung in zwei Schritten** einschalten
+   (<https://myaccount.google.com/signinoptions/twosv>), falls noch nicht aktiv.
+2. Unter <https://myaccount.google.com/apppasswords> ein **App-Passwort** erstellen
+   (Name z. B. `Supabase Einkaufsliste`). Google zeigt 16 Zeichen an – nur einmal, also
+   direkt weiterverwenden. Dieses Passwort gehört nur ins Supabase-Dashboard, nie ins Repository.
+3. In Supabase unter **Authentication → Emails → SMTP Settings** **Enable custom SMTP**
+   einschalten und eintragen:
+
+   | Feld | Wert |
+   | --- | --- |
+   | Sender email | deine Gmail-Adresse |
+   | Sender name | `Einkaufsliste` |
+   | Host | `smtp.gmail.com` |
+   | Port | `465` |
+   | Username | deine Gmail-Adresse |
+   | Password | das App-Passwort (ohne Leerzeichen) |
+
+4. Optional: Unter **Authentication → Emails → Templates** bei **Magic Link** und
+   **Confirm signup** den Betreff `Dein Login-Link für die Einkaufsliste` und den Inhalt von
+   `supabase/templates/login-link.html` einfügen – dann kommen die Mails auf Deutsch.
+
+Die Login-Mails kommen dann von deiner Gmail-Adresse. Landen sie im Spam-Ordner, einmal als
+„Kein Spam“ markieren.
 
 ### Hinweis zum kostenlosen Tarif
 

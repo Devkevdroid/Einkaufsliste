@@ -1,0 +1,16 @@
+<!-- Vorlage für die Login-Mails. In Supabase unter Authentication → Emails → Templates
+     bei „Magic Link“ und „Confirm signup“ einfügen. Betreff: Dein Login-Link für die Einkaufsliste -->
+<div style="font-family: Arial, sans-serif; max-width: 420px; margin: 0 auto; padding: 24px; color: #1c1917">
+  <h2 style="margin: 0 0 12px; color: #047857">Einkaufsliste</h2>
+  <p style="margin: 0 0 20px">Hallo! Tippe auf den Knopf, um dich anzumelden:</p>
+  <p style="margin: 0 0 24px">
+    <a href="{{ .ConfirmationURL }}"
+       style="display: inline-block; background: #047857; color: #ffffff; padding: 14px 24px; border-radius: 12px; text-decoration: none; font-weight: bold">
+      Jetzt anmelden
+    </a>
+  </p>
+  <p style="margin: 0; font-size: 13px; color: #78716c">
+    Der Link gilt eine Stunde und funktioniert nur einmal. Falls du dich nicht anmelden wolltest,
+    kannst du diese Mail einfach ignorieren.
+  </p>
+</div>
