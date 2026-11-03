@@ -12,7 +12,7 @@ Hosting auf Vercel. Alles im kostenlosen Tarif.
 | Schritt | Inhalt | Status |
 | --- | --- | --- |
 | 1 | Grundgerüst, Navigation, Hell/Dunkel | ✅ fertig |
-| 2 | Datenbank, Login per Magic Link, Haushalt & Einladung | ⏳ |
+| 2 | Datenbank, Login per Magic Link, Haushalt & Einladung | ✅ fertig |
 | 3 | Rezept-Import von HelloFresh | ⏳ |
 | 4 | Rezeptliste mit Suche | ⏳ |
 | 5 | Wochenplan | ⏳ |
@@ -68,7 +68,40 @@ Supabase ist unsere Datenbank mit Login. Der kostenlose Tarif reicht völlig.
 
 Die `.env`-Datei ist in `.gitignore` eingetragen und wird nie hochgeladen.
 
-Hinweis: Im kostenlosen Tarif pausiert Supabase ein Projekt, wenn es etwa eine Woche lang gar
+### Login-Adressen eintragen
+
+Im Supabase-Dashboard unter **Authentication → URL Configuration**:
+
+- **Site URL:** `http://localhost:5173` (später die Vercel-Adresse)
+- **Redirect URLs:** `http://localhost:5173/**` (später zusätzlich `https://deine-app.vercel.app/**`)
+
+### Datenbank-Schema hochladen
+
+Das Schema liegt als SQL-Datei in `supabase/migrations/`. Einmalig mit der Supabase-CLI verbinden:
+
+```bash
+npx supabase login
+npx supabase link --project-ref DEINE_PROJECT_REF
+```
+
+Die *Project Ref* ist der Teil der Project URL vor `.supabase.co`. Danach:
+
+| Befehl | Wozu |
+| --- | --- |
+| `npm run db:push` | Neue Migrationen in die Datenbank übernehmen |
+| `npm run db:types` | TypeScript-Typen aus der Datenbank neu erzeugen |
+| `npx supabase db query --remote -f supabase/tests/rls_haushalt.sql` | Sicherheitstest der Haushaltsregeln (ändert nichts) |
+
+### E-Mail-Versand für weitere Personen
+
+Der eingebaute E-Mail-Versand von Supabase schickt Login-Links nur an Mitglieder deines
+Supabase-Teams und nur wenige pro Stunde. Damit weitere Personen sich anmelden können, unter
+**Authentication → Emails → SMTP Settings** einen eigenen SMTP-Server eintragen (z. B. Gmail mit
+App-Passwort).
+
+### Hinweis zum kostenlosen Tarif
+
+Im kostenlosen Tarif pausiert Supabase ein Projekt, wenn es etwa eine Woche lang gar
 nicht benutzt wurde. Im Dashboard lässt es sich mit einem Klick wieder starten.
 
 ## Projektstruktur
@@ -76,7 +109,10 @@ nicht benutzt wurde. Im Dashboard lässt es sich mit einem Klick wieder starten.
 ```
 src/
   components/   wiederverwendbare Bausteine (Navigation, Seitenrahmen, Icons)
-  lib/          Hilfsfunktionen (z. B. Hell/Dunkel-Modus)
-  pages/        die einzelnen Seiten: Woche, Einkauf, Rezepte, Einstellungen
+  lib/          Supabase-Verbindung, Login, Haushalt, Hell/Dunkel-Modus
+  pages/        die einzelnen Seiten: Login, Haushalt, Woche, Einkauf, Rezepte, Einstellungen
 public/         Dateien, die unverändert ausgeliefert werden (Icon)
+supabase/
+  migrations/   Datenbank-Schema inkl. Sicherheitsregeln (RLS)
+  tests/        SQL-Tests für die Sicherheitsregeln
 ```
