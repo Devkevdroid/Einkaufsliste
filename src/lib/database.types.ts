@@ -202,6 +202,7 @@ export type Database = {
         Row: {
           add_to_list: boolean
           amount: number | null
+          amounts_by_servings: Json | null
           household_id: string
           id: string
           is_pantry: boolean
@@ -214,6 +215,7 @@ export type Database = {
         Insert: {
           add_to_list?: boolean
           amount?: number | null
+          amounts_by_servings?: Json | null
           household_id?: string
           id?: string
           is_pantry?: boolean
@@ -226,6 +228,7 @@ export type Database = {
         Update: {
           add_to_list?: boolean
           amount?: number | null
+          amounts_by_servings?: Json | null
           household_id?: string
           id?: string
           is_pantry?: boolean

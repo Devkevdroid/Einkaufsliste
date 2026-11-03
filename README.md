@@ -13,7 +13,7 @@ Hosting auf Vercel. Alles im kostenlosen Tarif.
 | --- | --- | --- |
 | 1 | Grundgerüst, Navigation, Hell/Dunkel | ✅ fertig |
 | 2 | Datenbank, Login per Magic Link, Haushalt & Einladung | ✅ fertig |
-| 3 | Rezept-Import von HelloFresh | ⏳ |
+| 3 | Rezept-Import von HelloFresh | ✅ fertig |
 | 4 | Rezeptliste mit Suche | ⏳ |
 | 5 | Wochenplan | ⏳ |
 | 6 | Einkaufsliste mit Echtzeit-Sync | ⏳ |
@@ -91,6 +91,19 @@ Die *Project Ref* ist der Teil der Project URL vor `.supabase.co`. Danach:
 | `npm run db:push` | Neue Migrationen in die Datenbank übernehmen |
 | `npm run db:types` | TypeScript-Typen aus der Datenbank neu erzeugen |
 | `npx supabase db query --remote -f supabase/tests/rls_haushalt.sql` | Sicherheitstest der Haushaltsregeln (ändert nichts) |
+
+### Rezept-Import (Edge Function)
+
+Der Browser darf HelloFresh nicht direkt abrufen (CORS). Deshalb lädt die Supabase Edge Function
+`import-recipe` (in `supabase/functions/import-recipe/`) die Rezeptseite und liest sie aus:
+zuerst die eingebetteten Seitendaten (`__NEXT_DATA__`, mit exakten Mengen für 2/3/4 Portionen),
+dann JSON-LD (schema.org/Recipe), zuletzt das HTML.
+
+| Befehl | Wozu |
+| --- | --- |
+| `npm run functions:deploy` | Edge Functions nach Supabase hochladen (nach jeder Änderung) |
+| `npm run test:import` | Import lokal mit den Beispielrezepten testen |
+| `npm run test:import -- <URL>` | Import mit einem beliebigen HelloFresh-Link testen |
 
 ### E-Mail-Versand für weitere Personen
 

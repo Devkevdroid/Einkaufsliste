@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "db:push": "supabase db push --remote",
-    "db:types": "supabase gen types typescript --remote --schema public > src/lib/database.types.ts"
+    "db:types": "supabase gen types typescript --remote --schema public > src/lib/database.types.ts",
+    "test:import": "node scripts/test-import.ts",
+    "functions:deploy": "supabase functions deploy --use-api"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
