@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { parseISODate, shortDate, weekdayName } from '../lib/dates'
 import { useHousehold } from '../lib/household'
 import { deletePlanEntry, setPlanEntry, type PlanEntry } from '../lib/plan'
+import { DEFAULT_SERVINGS } from '../lib/servings'
 import { errorMessage, supabase } from '../lib/supabase'
 import { matchesSearch } from '../lib/text'
 import { ServingsStepper } from './ServingsStepper'
@@ -10,7 +11,6 @@ import { Sheet } from './Sheet'
 import { Button, ErrorText } from './ui'
 
 const NOTE_SUGGESTIONS = ['Essen gehen', 'Reste', 'Unterwegs', 'Bestellen', 'Bei Freunden']
-const DEFAULT_SERVINGS = 4
 
 type RecipeOption = { id: string; title: string; image_url: string | null; servings: number }
 

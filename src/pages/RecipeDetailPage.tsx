@@ -4,7 +4,7 @@ import { Placeholder } from '../components/Page'
 import { ServingsStepper } from '../components/ServingsStepper'
 import { Button, Card, ErrorText } from '../components/ui'
 import type { Tables } from '../lib/database.types'
-import { formatAmount, ingredientAmount, stepServings, stepTextForServings } from '../lib/servings'
+import { DEFAULT_SERVINGS, formatAmount, ingredientAmount, stepServings, stepTextForServings } from '../lib/servings'
 import { errorMessage, supabase } from '../lib/supabase'
 
 type Ingredient = Tables<'recipe_ingredients'>
@@ -15,7 +15,7 @@ export function RecipeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [recipe, setRecipe] = useState<Recipe | null | undefined>(undefined)
-  const [servings, setServings] = useState(4)
+  const [servings, setServings] = useState(DEFAULT_SERVINGS)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -30,7 +30,6 @@ export function RecipeDetailPage() {
       .then(({ data, error }) => {
         if (error) setError(errorMessage(error))
         setRecipe(data)
-        if (data) setServings(data.servings)
       })
   }, [id])
 

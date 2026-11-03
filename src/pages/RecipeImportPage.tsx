@@ -6,6 +6,7 @@ import { Button, Card, ErrorText } from '../components/ui'
 import { findExistingRecipe, importRecipe, saveRecipe, type ImportedRecipe } from '../lib/recipes'
 import {
   amountForServings,
+  DEFAULT_SERVINGS,
   extractUrl,
   formatAmount,
   formatNumber,
@@ -14,8 +15,6 @@ import {
   stepTextForServings,
   type Amount,
 } from '../lib/servings'
-
-const DEFAULT_SERVINGS = 4
 
 type IngredientRow = {
   name: string

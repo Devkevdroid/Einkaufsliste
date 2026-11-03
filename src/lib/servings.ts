@@ -2,6 +2,9 @@
 
 export type Amount = { amount: number | null; unit: string | null }
 
+/** Unsere übliche Portionszahl: beim Import, beim Einplanen und in der Rezeptansicht. */
+export const DEFAULT_SERVINGS = 2
+
 /**
  * Menge für die gewünschte Portionszahl.
  * Exakte HelloFresh-Werte haben Vorrang; sonst wird von der größten bekannten Portionszahl hochgerechnet.
