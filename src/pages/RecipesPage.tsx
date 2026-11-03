@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Page, Placeholder } from '../components/Page'
 import { ErrorText } from '../components/ui'
@@ -12,11 +12,21 @@ type RecipeSummary = {
   prep_minutes: number | null
 }
 
+/** Für die Suche: Kleinbuchstaben, Umlaute/Akzente vereinfacht ("Börek" findet auch "borek"). */
+function normalize(text: string) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/ß/g, 'ss')
+}
+
 export function RecipesPage() {
   const location = useLocation()
   const savedId = (location.state as { savedId?: string } | null)?.savedId
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     supabase
@@ -28,6 +38,15 @@ export function RecipesPage() {
         else setRecipes(data)
       })
   }, [])
+
+  const filtered = useMemo(() => {
+    const words = normalize(query).split(/\s+/).filter(Boolean)
+    if (!recipes || words.length === 0) return recipes
+    return recipes.filter((recipe) => {
+      const haystack = normalize(`${recipe.title} ${recipe.subtitle ?? ''}`)
+      return words.every((word) => haystack.includes(word))
+    })
+  }, [recipes, query])
 
   return (
     <Page title="Rezepte">
@@ -46,27 +65,46 @@ export function RecipesPage() {
         )}
         <ErrorText>{error}</ErrorText>
 
+        {recipes && recipes.length > 0 && (
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rezepte durchsuchen …"
+            aria-label="Rezepte durchsuchen"
+            className="h-12 w-full rounded-xl border border-stone-300 bg-white px-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 dark:border-stone-700 dark:bg-stone-900"
+          />
+        )}
+
         {recipes?.length === 0 && <Placeholder>Noch keine Rezepte. Importiere dein erstes Rezept!</Placeholder>}
+        {recipes && recipes.length > 0 && filtered?.length === 0 && (
+          <Placeholder>Kein Rezept passt zu „{query}“.</Placeholder>
+        )}
 
         <ul className="space-y-2">
-          {recipes?.map((recipe) => (
-            <li
-              key={recipe.id}
-              className={`flex items-center gap-3 rounded-2xl bg-white p-2 shadow-sm dark:bg-stone-900 ${
-                recipe.id === savedId ? 'ring-2 ring-emerald-600' : ''
-              }`}
-            >
-              {recipe.image_url ? (
-                <img src={recipe.image_url} alt="" loading="lazy" className="size-16 shrink-0 rounded-xl object-cover" />
-              ) : (
-                <div className="size-16 shrink-0 rounded-xl bg-stone-200 dark:bg-stone-800" />
-              )}
-              <div className="min-w-0">
-                <p className="truncate font-medium">{recipe.title}</p>
-                {recipe.subtitle && (
-                  <p className="truncate text-sm text-stone-500 dark:text-stone-400">{recipe.subtitle}</p>
+          {filtered?.map((recipe) => (
+            <li key={recipe.id}>
+              <Link
+                to={`/rezepte/${recipe.id}`}
+                className={`flex items-center gap-3 rounded-2xl bg-white p-2 shadow-sm hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800 ${
+                  recipe.id === savedId ? 'ring-2 ring-emerald-600' : ''
+                }`}
+              >
+                {recipe.image_url ? (
+                  <img src={recipe.image_url} alt="" loading="lazy" className="size-16 shrink-0 rounded-xl object-cover" />
+                ) : (
+                  <div className="size-16 shrink-0 rounded-xl bg-stone-200 dark:bg-stone-800" />
                 )}
-              </div>
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{recipe.title}</p>
+                  {recipe.subtitle && (
+                    <p className="truncate text-sm text-stone-500 dark:text-stone-400">{recipe.subtitle}</p>
+                  )}
+                  {recipe.prep_minutes && (
+                    <p className="text-xs text-stone-400 dark:text-stone-500">{recipe.prep_minutes} Min.</p>
+                  )}
+                </div>
+              </Link>
             </li>
           ))}
         </ul>

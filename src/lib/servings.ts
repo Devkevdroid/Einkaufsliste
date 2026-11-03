@@ -15,6 +15,17 @@ export function amountForServings(amounts: Record<string, Amount>, servings: num
   return scaleAmount(amounts[String(base)], base, servings)
 }
 
+/** Menge einer gespeicherten Rezeptzutat für eine beliebige Portionszahl. */
+export function ingredientAmount(
+  ingredient: { amount: number | null; unit: string | null; amounts_by_servings: unknown },
+  recipeServings: number,
+  servings: number,
+): Amount {
+  const exact = ingredient.amounts_by_servings as Record<string, Amount> | null
+  if (exact && Object.keys(exact).length > 0) return amountForServings(exact, servings)
+  return scaleAmount({ amount: ingredient.amount, unit: ingredient.unit }, recipeServings, servings)
+}
+
 export function scaleAmount(value: Amount, fromServings: number, toServings: number): Amount {
   if (value.amount === null || fromServings === toServings) return value
   return { amount: roundAmount((value.amount * toServings) / fromServings, value.unit), unit: value.unit }

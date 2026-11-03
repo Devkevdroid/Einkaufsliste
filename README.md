@@ -14,7 +14,7 @@ Hosting auf Vercel. Alles im kostenlosen Tarif.
 | 1 | Grundgerüst, Navigation, Hell/Dunkel | ✅ fertig |
 | 2 | Datenbank, Login per Magic Link, Haushalt & Einladung | ✅ fertig |
 | 3 | Rezept-Import von HelloFresh | ✅ fertig |
-| 4 | Rezeptliste mit Suche | ⏳ |
+| 4 | Rezeptliste mit Suche | ✅ fertig |
 | 5 | Wochenplan | ⏳ |
 | 6 | Einkaufsliste mit Echtzeit-Sync | ⏳ |
 | 7 | PWA (installierbar, offline) & Deployment auf Vercel | ⏳ |

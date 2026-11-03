@@ -6,6 +6,7 @@ import { HouseholdProvider, useHouseholdState } from './lib/household'
 import { isSupabaseConfigured } from './lib/supabase'
 import { HouseholdSetupPage } from './pages/HouseholdSetupPage'
 import { LoginPage } from './pages/LoginPage'
+import { RecipeDetailPage } from './pages/RecipeDetailPage'
 import { RecipeImportPage } from './pages/RecipeImportPage'
 import { RecipesPage } from './pages/RecipesPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -50,6 +51,7 @@ function HouseholdGate() {
         <Route path="/einkauf" element={<ShoppingPage />} />
         <Route path="/rezepte" element={<RecipesPage />} />
         <Route path="/rezepte/import" element={<RecipeImportPage />} />
+        <Route path="/rezepte/:id" element={<RecipeDetailPage />} />
         <Route path="/einstellungen" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/woche" replace />} />
       </Routes>

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Page } from '../components/Page'
+import { ServingsStepper } from '../components/ServingsStepper'
 import { Button, Card, ErrorText } from '../components/ui'
 import { findExistingRecipe, importRecipe, saveRecipe, type ImportedRecipe } from '../lib/recipes'
 import {
@@ -152,7 +153,7 @@ export function RecipeImportPage() {
             {existing && (
               <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                 Dieses Rezept ist schon gespeichert:{' '}
-                <Link to="/rezepte" className="font-medium underline">
+                <Link to={`/rezepte/${existing.id}`} className="font-medium underline">
                   {existing.title}
                 </Link>
                 . Du kannst es trotzdem noch einmal speichern.
@@ -183,15 +184,7 @@ export function RecipeImportPage() {
             <Card>
               <div className="flex items-center justify-between">
                 <span className="font-semibold">Portionen</span>
-                <div className="flex items-center gap-1">
-                  <StepButton label="Weniger Portionen" onClick={() => setServings((s) => Math.max(1, s - 1))}>
-                    −
-                  </StepButton>
-                  <span className="w-10 text-center text-xl font-bold tabular-nums">{servings}</span>
-                  <StepButton label="Mehr Portionen" onClick={() => setServings((s) => Math.min(12, s + 1))}>
-                    +
-                  </StepButton>
-                </div>
+                <ServingsStepper value={servings} onChange={setServings} />
               </div>
               <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
                 {exact
@@ -266,19 +259,6 @@ export function RecipeImportPage() {
         )}
       </div>
     </Page>
-  )
-}
-
-function StepButton({ label, onClick, children }: { label: string; onClick: () => void; children: string }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      className="flex size-11 items-center justify-center rounded-full border border-stone-300 text-xl font-bold hover:bg-stone-100 dark:border-stone-700 dark:hover:bg-stone-800"
-    >
-      {children}
-    </button>
   )
 }
 
