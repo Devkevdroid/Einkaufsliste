@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ingredientAmount } from './servings'
 import type { ListItem } from './shoppingGroups'
-import { errorMessage, supabase } from './supabase'
+import { readStorage, writeStorage } from './storage'
+import { errorMessage, isNetworkError, supabase } from './supabase'
 import { normalize } from './text'
 
 // ---------------------------------------------------------------------------
@@ -96,11 +97,6 @@ function applyOp(items: ListItem[], op: Op): ListItem[] {
   }
 }
 
-/** Liefert true, wenn der Fehler nur an fehlender Verbindung liegt (dann später erneut versuchen). */
-function isNetworkError(error: { code?: string; message: string }) {
-  return !error.code || /fetch|network/i.test(error.message)
-}
-
 async function sendOp(op: Op) {
   const query =
     op.kind === 'check'
@@ -116,23 +112,6 @@ async function sendOp(op: Op) {
   if (isNetworkError(error)) throw error
   // Dauerhafter Fehler (z. B. Artikel wurde inzwischen gelöscht): Änderung verwerfen statt ewig zu wiederholen.
   console.warn('Änderung verworfen:', error.message)
-}
-
-function readStorage<T>(key: string, fallback: T): T {
-  try {
-    const value = localStorage.getItem(key)
-    return value ? (JSON.parse(value) as T) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function writeStorage(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // Speicher voll oder gesperrt – dann eben nur im Arbeitsspeicher.
-  }
 }
 
 export function useShoppingList(householdId: string) {

@@ -118,6 +118,46 @@ App-Passwort).
 Im kostenlosen Tarif pausiert Supabase ein Projekt, wenn es etwa eine Woche lang gar
 nicht benutzt wurde. Im Dashboard lässt es sich mit einem Klick wieder starten.
 
+## Online stellen mit Vercel (einmalig)
+
+Vercel baut die App bei jedem Push auf GitHub automatisch neu und stellt sie online.
+
+1. Auf <https://vercel.com/signup> **Hobby** wählen und mit **Continue with GitHub** anmelden.
+2. **Add New… → Project** wählen. Bei **Import Git Repository** das Repository `Einkaufsliste`
+   auswählen. Falls es fehlt: **Adjust GitHub App Permissions** und Zugriff auf das Repository geben.
+3. Vercel erkennt **Vite** automatisch, die Einstellungen bleiben, wie sie sind.
+4. **Environment Variables** aufklappen und dieselben zwei Werte wie in deiner `.env` eintragen:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+5. **Deploy** klicken. Nach etwa einer Minute steht oben die Adresse, z. B.
+   `https://einkaufsliste-xyz.vercel.app`.
+6. Diese Adresse in Supabase unter **Authentication → URL Configuration** eintragen:
+   - **Site URL:** `https://einkaufsliste-xyz.vercel.app`
+   - **Redirect URLs:** zusätzlich `https://einkaufsliste-xyz.vercel.app/**`
+     (`http://localhost:5173/**` bleibt für die Entwicklung stehen)
+
+Danach reicht `git push`: Vercel baut und veröffentlicht die neue Version selbst. Die
+Datei `vercel.json` sorgt dafür, dass Adressen wie `/einkauf` auch beim Neuladen funktionieren.
+
+> Ändert sich die Datenbank oder die Edge Function, muss das weiterhin separat mit
+> `npm run db:push` bzw. `npm run functions:deploy` hochgeladen werden.
+
+## Als App aufs Handy (Android)
+
+1. Die Vercel-Adresse in **Chrome** oder **Samsung Internet** öffnen und anmelden.
+2. Chrome: Menü **⋮ → Zum Startbildschirm hinzufügen → Installieren**.
+   Samsung Internet: Menü **≡ → Seite hinzufügen zu → Startbildschirm**.
+3. Die App startet danach ohne Browserleiste. Langes Drücken auf das Icon bietet die
+   Abkürzungen **Einkaufsliste** und **Wochenplan**.
+
+Offline: Die App selbst und die Einkaufsliste funktionieren ohne Netz. Abgehakte und neue
+Artikel werden gespeichert und automatisch übertragen, sobald wieder Verbindung besteht.
+Wochenplan und Rezepte brauchen eine Verbindung.
+
+Neue Versionen lädt die App im Hintergrund; sie sind ab dem nächsten Öffnen aktiv.
+
+Die App-Icons entstehen aus `public/favicon.svg`. Nach einer Änderung am Logo: `npm run icons`.
+
 ## Projektstruktur
 
 ```
@@ -125,7 +165,7 @@ src/
   components/   wiederverwendbare Bausteine (Navigation, Seitenrahmen, Icons)
   lib/          Supabase-Verbindung, Login, Haushalt, Hell/Dunkel-Modus
   pages/        die einzelnen Seiten: Login, Haushalt, Woche, Einkauf, Rezepte, Einstellungen
-public/         Dateien, die unverändert ausgeliefert werden (Icon)
+public/         Dateien, die unverändert ausgeliefert werden (Icons)
 supabase/
   migrations/   Datenbank-Schema inkl. Sicherheitsregeln (RLS)
   tests/        SQL-Tests für die Sicherheitsregeln

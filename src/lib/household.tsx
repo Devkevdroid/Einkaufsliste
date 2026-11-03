@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useUser } from './auth'
-import { supabase } from './supabase'
+import { readStorage, removeStorage, writeStorage } from './storage'
+import { errorMessage, isNetworkError, supabase } from './supabase'
 
 export type Household = {
   id: string
@@ -19,11 +20,16 @@ type HouseholdState = {
 
 const HouseholdContext = createContext<HouseholdState | null>(null)
 
+type CachedHousehold = { household: Household; role: HouseholdState['role'] }
+
 export function HouseholdProvider({ children }: { children: ReactNode }) {
   const user = useUser()
-  const [household, setHousehold] = useState<Household | null>(null)
-  const [role, setRole] = useState<HouseholdState['role']>(null)
-  const [loading, setLoading] = useState(true)
+  // Zuletzt geladener Haushalt – damit die App auch ohne Netz startet.
+  const cacheKey = `household:${user.id}`
+  const [cached] = useState(() => readStorage<CachedHousehold | null>(cacheKey, null))
+  const [household, setHousehold] = useState<Household | null>(cached?.household ?? null)
+  const [role, setRole] = useState<HouseholdState['role']>(cached?.role ?? null)
+  const [loading, setLoading] = useState(!cached)
   const [error, setError] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
@@ -34,14 +40,18 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       .maybeSingle()
 
     if (error) {
-      setError(error.message)
+      // Ohne Netz mit dem gespeicherten Haushalt weitermachen.
+      if (!(isNetworkError(error) && readStorage(cacheKey, null))) setError(errorMessage(error))
     } else {
+      const role = (data?.role as HouseholdState['role']) ?? null
       setError(null)
       setHousehold(data?.households ?? null)
-      setRole((data?.role as HouseholdState['role']) ?? null)
+      setRole(role)
+      if (data?.households) writeStorage(cacheKey, { household: data.households, role })
+      else removeStorage(cacheKey)
     }
     setLoading(false)
-  }, [user.id])
+  }, [user.id, cacheKey])
 
   useEffect(() => {
     void reload()

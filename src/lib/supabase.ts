@@ -1,5 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type Session } from '@supabase/supabase-js'
 import type { Database } from './database.types'
+import { readStorage } from './storage'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
@@ -17,6 +18,21 @@ export const supabase = createClient<Database>(url ?? 'http://localhost', key ??
     detectSessionInUrl: true,
   },
 })
+
+/**
+ * Die im Browser gespeicherte Anmeldung (gleicher Schlüssel, den supabase-js selbst verwendet).
+ * Offline mit abgelaufenem Zugangstoken meldet supabase-js „nicht angemeldet“, obwohl die Anmeldung noch da ist.
+ */
+export function storedSession(): Session | null {
+  if (!url) return null
+  const session = readStorage<Session | null>(`sb-${new URL(url).hostname.split('.')[0]}-auth-token`, null)
+  return session?.user && session.refresh_token ? session : null
+}
+
+/** Liefert true, wenn der Fehler nur an fehlender Verbindung liegt (dann später erneut versuchen). */
+export function isNetworkError(error: { code?: string; message: string }) {
+  return !error.code || /fetch|network/i.test(error.message)
+}
 
 /** Macht aus Supabase-Fehlern eine verständliche deutsche Meldung. */
 export function errorMessage(error: unknown): string {

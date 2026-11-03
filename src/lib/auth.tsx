@@ -1,6 +1,6 @@
 import type { Session } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { supabase } from './supabase'
+import { storedSession, supabase } from './supabase'
 
 type AuthState = {
   session: Session | null
@@ -14,7 +14,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Liefert sofort ein INITIAL_SESSION-Ereignis – auch nach dem Klick auf den Login-Link.
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      // Ohne Netz mit der gespeicherten Anmeldung weitermachen (z. B. Einkaufsliste im Laden).
+      // Sobald wieder Netz da ist, erneuert supabase-js sie selbst und meldet sich hier erneut.
+      if (event === 'INITIAL_SESSION' && !session) session = storedSession()
       setState({ session, loading: false })
     })
     return () => data.subscription.unsubscribe()
