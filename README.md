@@ -16,7 +16,7 @@ Hosting auf Vercel. Alles im kostenlosen Tarif.
 | 3 | Rezept-Import von HelloFresh | ✅ fertig |
 | 4 | Rezeptliste mit Suche | ✅ fertig |
 | 5 | Wochenplan | ✅ fertig |
-| 6 | Einkaufsliste mit Echtzeit-Sync | ⏳ |
+| 6 | Einkaufsliste mit Echtzeit-Sync | ✅ fertig |
 | 7 | PWA (installierbar, offline) & Deployment auf Vercel | ⏳ |
 
 ## Voraussetzungen
@@ -42,6 +42,7 @@ Weitere Befehle:
 | `npm run build` | Prüft die Typen und baut die fertige App in den Ordner `dist` |
 | `npm run preview` | Startet die gebaute App zum Testen |
 | `npm run lint` | Sucht nach typischen Fehlern im Code |
+| `npm run test:shopping` | Testet das Zusammenfassen der Einkaufsliste |
 
 ## Supabase einrichten (einmalig)
 
