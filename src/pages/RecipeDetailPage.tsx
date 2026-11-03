@@ -5,7 +5,8 @@ import { ServingsStepper } from '../components/ServingsStepper'
 import { Button, Card, ErrorText } from '../components/ui'
 import type { Tables } from '../lib/database.types'
 import { DEFAULT_SERVINGS, formatAmount, ingredientAmount, stepServings, stepTextForServings } from '../lib/servings'
-import { errorMessage, supabase } from '../lib/supabase'
+import { readStorage, removeStorage, writeStorage } from '../lib/storage'
+import { errorMessage, isNetworkError, supabase } from '../lib/supabase'
 
 type Ingredient = Tables<'recipe_ingredients'>
 type Recipe = Tables<'recipes'> & { recipe_ingredients: Ingredient[] }
@@ -14,7 +15,9 @@ type Step = { text: string; image_url: string | null }
 export function RecipeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [recipe, setRecipe] = useState<Recipe | null | undefined>(undefined)
+  // Zuletzt geladene Fassung – damit man offline nachkochen kann.
+  const cacheKey = `recipe:${id}`
+  const [recipe, setRecipe] = useState<Recipe | null | undefined>(() => readStorage<Recipe | undefined>(cacheKey, undefined))
   const [servings, setServings] = useState(DEFAULT_SERVINGS)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -28,10 +31,16 @@ export function RecipeDetailPage() {
       .order('position', { referencedTable: 'recipe_ingredients' })
       .maybeSingle()
       .then(({ data, error }) => {
-        if (error) setError(errorMessage(error))
+        if (error) {
+          // Offline mit gespeicherter Fassung: einfach diese weiter anzeigen.
+          if (isNetworkError(error) && readStorage(cacheKey, null)) return
+          setError(errorMessage(error))
+        }
         setRecipe(data)
+        if (data) writeStorage(cacheKey, data)
+        else removeStorage(cacheKey)
       })
-  }, [id])
+  }, [id, cacheKey])
 
   async function toggleOnList(ingredient: Ingredient) {
     const addToList = !ingredient.add_to_list

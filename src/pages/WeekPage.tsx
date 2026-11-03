@@ -5,6 +5,7 @@ import { ErrorText } from '../components/ui'
 import { addDays, isoWeek, parseISODate, startOfWeek, toISODate, weekdayName, weekRange } from '../lib/dates'
 import { useHousehold } from '../lib/household'
 import { loadPlan, type PlanEntry } from '../lib/plan'
+import { readStorage, writeStorage } from '../lib/storage'
 import { supabase } from '../lib/supabase'
 
 export function WeekPage() {
@@ -16,21 +17,35 @@ export function WeekPage() {
   const todayISO = toISODate(new Date())
   const isCurrentWeek = mondayISO === toISODate(startOfWeek(new Date()))
 
-  const [entries, setEntries] = useState<Record<string, PlanEntry> | null>(null)
+  // Zuletzt geladener Stand dieser Woche – wird offline angezeigt.
+  const cacheKey = `plan:${household.id}:${mondayISO}`
+  const [entries, setEntries] = useState<Record<string, PlanEntry> | null>(() => readStorage(cacheKey, null))
   const [error, setError] = useState<string | null>(null)
+  const [offline, setOffline] = useState(false)
   const [openDay, setOpenDay] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
+    const cached = readStorage<Record<string, PlanEntry> | null>(cacheKey, null)
+    setEntries(cached)
     try {
-      setEntries(await loadPlan(mondayISO, sundayISO))
+      const plan = await loadPlan(mondayISO, sundayISO)
+      setEntries(plan)
+      writeStorage(cacheKey, plan)
       setError(null)
+      setOffline(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      // Mit gespeichertem Stand nur ein Hinweis statt Fehlermeldung.
+      setOffline(cached !== null)
+      setError(cached !== null ? null : e instanceof Error ? e.message : String(e))
     }
-  }, [mondayISO, sundayISO])
+  }, [cacheKey, mondayISO, sundayISO])
 
   useEffect(() => {
     void reload()
+    // Wieder online → aktuellen Stand holen.
+    const onOnline = () => void reload()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
   }, [reload])
 
   // Änderungen vom anderen Gerät sofort übernehmen.
@@ -81,6 +96,11 @@ export function WeekPage() {
       )}
 
       <ErrorText>{error}</ErrorText>
+      {offline && (
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          Offline – du siehst den zuletzt geladenen Stand.
+        </p>
+      )}
 
       <ul className="space-y-2">
         {days.map((date) => {
