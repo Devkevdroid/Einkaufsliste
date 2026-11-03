@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router'
 import { Page, Placeholder } from '../components/Page'
 import { ErrorText } from '../components/ui'
 import { errorMessage, supabase } from '../lib/supabase'
+import { matchesSearch } from '../lib/text'
 
 type RecipeSummary = {
   id: string
@@ -10,15 +11,6 @@ type RecipeSummary = {
   subtitle: string | null
   image_url: string | null
   prep_minutes: number | null
-}
-
-/** Für die Suche: Kleinbuchstaben, Umlaute/Akzente vereinfacht ("Börek" findet auch "borek"). */
-function normalize(text: string) {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/ß/g, 'ss')
 }
 
 export function RecipesPage() {
@@ -39,14 +31,10 @@ export function RecipesPage() {
       })
   }, [])
 
-  const filtered = useMemo(() => {
-    const words = normalize(query).split(/\s+/).filter(Boolean)
-    if (!recipes || words.length === 0) return recipes
-    return recipes.filter((recipe) => {
-      const haystack = normalize(`${recipe.title} ${recipe.subtitle ?? ''}`)
-      return words.every((word) => haystack.includes(word))
-    })
-  }, [recipes, query])
+  const filtered = useMemo(
+    () => recipes?.filter((recipe) => matchesSearch(`${recipe.title} ${recipe.subtitle ?? ''}`, query)) ?? null,
+    [recipes, query],
+  )
 
   return (
     <Page title="Rezepte">
