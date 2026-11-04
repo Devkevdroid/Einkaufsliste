@@ -8,6 +8,13 @@
       "port": 5173
     },
     {
+      "name": "offline-demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174", "--strictPort"],
+      "env": { "VITE_SUPABASE_URL": "http://127.0.0.1:9" },
+      "port": 5174
+    },
+    {
       "name": "preview",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview", "--", "--port", "4173", "--strictPort"],

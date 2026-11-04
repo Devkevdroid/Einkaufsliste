@@ -2,7 +2,7 @@
 // Ausführen: npm run test:shopping
 
 import assert from 'node:assert/strict'
-import { groupItems, parseItemInput, type ListItem } from '../src/lib/shoppingGroups.ts'
+import { groupItems, parseItemInput, splitByTrip, type ListItem } from '../src/lib/shoppingGroups.ts'
 
 let n = 0
 function item(name: string, amount: number | null, unit: string | null, extra: Partial<ListItem> = {}): ListItem {
@@ -48,10 +48,34 @@ assert.deepEqual(byName.zwiebel.amounts, [{ amount: 3, unit: 'Stück' }])
 assert.equal(groups.at(-1)?.name, 'Brot', 'Erledigtes steht am Ende')
 assert.deepEqual(
   groups.map((g) => g.name),
-  ['Milch', 'Paprika', 'Salz', 'Tomatenmark', 'Zwiebel', 'Brot'],
-  'offen alphabetisch, dann erledigt',
+  ['Paprika', 'Salz', 'Tomatenmark', 'Zwiebel', 'Milch', 'Brot'],
+  'offen nach Tag, dann alphabetisch; eigene Artikel danach; Erledigtes am Ende',
 )
 console.log('✅ Zusammenfassen der Einkaufsliste')
+
+// 2026-11-02 = Montag, 2026-11-05 = Donnerstag, 2026-11-06 = Freitag, 2026-11-08 = Sonntag
+const trips = splitByTrip([
+  item('Feta', 200, 'g', { plan_day: '2026-11-05' }),
+  item('Zwiebel', 1, 'Stück', { plan_day: '2026-11-02' }),
+  item('Zwiebel', 2, 'Stück', { plan_day: '2026-11-08', recipe_title: 'Rezept C' }),
+  item('Burrata', 1, 'Stück', { plan_day: '2026-11-06' }),
+  item('Milch', 1, 'l', { source: 'manual', recipe_title: null, plan_day: null }),
+  item('Reis', 300, 'g', { plan_day: '2026-11-09' }),
+])
+assert.deepEqual(
+  trips.map((t) => [t.monday, t.late, t.groups.map((g) => g.name)]),
+  [
+    ['2026-11-02', false, ['Zwiebel', 'Feta', 'Milch']],
+    ['2026-11-02', true, ['Burrata', 'Zwiebel']],
+    ['2026-11-09', false, ['Reis']],
+  ],
+  'Mo–Do / Fr–So je Woche, eigene Artikel beim ersten Einkauf',
+)
+assert.deepEqual(trips[1].groups[1].amounts, [{ amount: 2, unit: 'Stück' }], 'Menge nur für die eigenen Tage')
+assert.equal(new Set(trips.flatMap((t) => t.groups.map((g) => g.key))).size, 6, 'Schlüssel eindeutig')
+assert.deepEqual(splitByTrip([item('Brot', null, null, { source: 'manual', plan_day: null })]).map((t) => t.monday), [null])
+assert.deepEqual(splitByTrip([]), [])
+console.log('✅ Aufteilen in Mo–Do und Fr–So')
 
 assert.deepEqual(parseItemInput('500 g Hackfleisch'), { name: 'Hackfleisch', amount: 500, unit: 'g' })
 assert.deepEqual(parseItemInput('2 Zwiebeln'), { name: 'Zwiebeln', amount: 2, unit: null })

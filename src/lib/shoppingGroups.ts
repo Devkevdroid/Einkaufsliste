@@ -1,5 +1,6 @@
 // Einkaufsliste anzeigen: gleiche Zutaten zusammenfassen. Reine Funktionen – auch mit Node testbar.
 
+import { parseISODate, startOfWeek, toISODate } from './dates.ts'
 import { normalize } from './text.ts'
 
 export type ListItem = {
@@ -61,8 +62,63 @@ export function groupItems(items: ListItem[]): ItemGroup[] {
 
   const all = [...groups.values()]
   for (const group of all) group.sources.sort((a, b) => (a.day ?? '').localeCompare(b.day ?? ''))
-  // Offenes alphabetisch oben, Erledigtes ans Ende.
-  return all.sort((a, b) => Number(a.checked) - Number(b.checked) || a.name.localeCompare(b.name, 'de'))
+  // Offenes oben, nach Tag sortiert (eigene Artikel ohne Tag danach), dann alphabetisch; Erledigtes ans Ende.
+  const firstDay = (g: ItemGroup) => g.sources[0]?.day ?? '9999'
+  return all.sort(
+    (a, b) =>
+      Number(a.checked) - Number(b.checked) ||
+      firstDay(a).localeCompare(firstDay(b)) ||
+      a.name.localeCompare(b.name, 'de'),
+  )
+}
+
+export type Trip = {
+  key: string
+  /** false = Einkauf für Mo–Do, true = für Fr–So */
+  late: boolean
+  /** Montag der Woche ("2026-11-02"); null, wenn nur Artikel ohne Tag auf der Liste stehen */
+  monday: string | null
+  groups: ItemGroup[]
+}
+
+/** Fr, Sa, So → zweiter Einkauf der Woche. */
+export function isLateDay(day: string): boolean {
+  return [5, 6, 0].includes(parseISODate(day)!.getDay())
+}
+
+/**
+ * Teilt die Liste in Einkäufe: Mo–Do und Fr–So je Woche, in zeitlicher Reihenfolge.
+ * Eigene Artikel ohne Tag kommen zum ersten Einkauf.
+ */
+export function splitByTrip(items: ListItem[]): Trip[] {
+  const buckets = new Map<string, { late: boolean; monday: string | null; items: ListItem[] }>()
+  const undated: ListItem[] = []
+  for (const item of items) {
+    if (!item.plan_day) {
+      undated.push(item)
+      continue
+    }
+    const monday = toISODate(startOfWeek(parseISODate(item.plan_day)!))
+    const late = isLateDay(item.plan_day)
+    const key = `${monday}:${late ? 2 : 1}`
+    const bucket = buckets.get(key) ?? { late, monday, items: [] }
+    bucket.items.push(item)
+    buckets.set(key, bucket)
+  }
+  const keys = [...buckets.keys()].sort()
+  if (undated.length > 0) {
+    if (keys.length === 0) {
+      keys.push('ohne-tag')
+      buckets.set('ohne-tag', { late: false, monday: null, items: [] })
+    }
+    buckets.get(keys[0])!.items.push(...undated)
+  }
+  return keys.map((key) => {
+    const { late, monday, items } = buckets.get(key)!
+    // Gleiche Zutat in beiden Einkäufen bleibt getrennt – jeweils mit der Menge für diese Tage.
+    const groups = groupItems(items).map((g) => ({ ...g, key: `${key}|${g.key}` }))
+    return { key, late, monday, groups }
+  })
 }
 
 const UNITS: Record<string, string> = {

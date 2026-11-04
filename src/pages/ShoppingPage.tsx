@@ -6,7 +6,7 @@ import { addDays, isoWeek, parseISODate, startOfWeek, toISODate, weekRange } fro
 import { useHousehold } from '../lib/household'
 import { formatAmount } from '../lib/servings'
 import { generateFromPlan, useShoppingList } from '../lib/shopping'
-import { groupItems, parseItemInput, type ItemGroup } from '../lib/shoppingGroups'
+import { isLateDay, parseItemInput, splitByTrip, type ItemGroup } from '../lib/shoppingGroups'
 
 const HIDE_CHECKED_KEY = 'shopping-hide-checked'
 
@@ -25,9 +25,10 @@ export function ShoppingPage() {
   const [hideChecked, setHideChecked] = useState(readHideChecked)
   const [showGenerator, setShowGenerator] = useState(false)
 
-  const groups = useMemo(() => groupItems(list.items ?? []), [list.items])
-  const open = groups.filter((g) => !g.checked)
-  const done = groups.filter((g) => g.checked)
+  const trips = useMemo(() => splitByTrip(list.items ?? []), [list.items])
+  const done = trips.flatMap((t) => t.groups.filter((g) => g.checked))
+  // Stehen mehrere Wochen auf der Liste, kommt die Kalenderwoche in die Überschrift.
+  const multipleWeeks = new Set(trips.map((t) => t.monday)).size > 1
 
   function addItem(event: FormEvent) {
     event.preventDefault()
@@ -83,15 +84,36 @@ export function ShoppingPage() {
         </Button>
 
         {!list.loaded && <p className="py-8 text-center text-stone-500 dark:text-stone-400">Lädt …</p>}
-        {list.loaded && groups.length === 0 && (
+        {list.loaded && trips.length === 0 && (
           <Placeholder>Die Liste ist leer. Übernimm die Zutaten aus dem Wochenplan oder füge eigene Artikel hinzu.</Placeholder>
         )}
 
-        <ul className="space-y-1.5">
-          {open.map((group) => (
-            <GroupRow key={group.key} group={group} onToggle={() => list.setChecked(group.itemIds, true)} />
-          ))}
-        </ul>
+        {trips.map((trip) => {
+          const open = trip.groups.filter((g) => !g.checked)
+          if (open.length === 0) return null
+          const tone = TONES[trip.late ? 'late' : 'early']
+          const week = multipleWeeks && trip.monday ? `KW ${isoWeek(parseISODate(trip.monday)!)} · ` : ''
+          return (
+            <section key={trip.key} className="space-y-1.5 pt-2">
+              <h2 className={`flex items-center gap-2 text-sm font-bold ${tone.text}`}>
+                <span className={`size-2.5 rounded-full ${tone.dot}`} aria-hidden="true" />
+                {week}
+                {trip.monday ? (trip.late ? 'Für Fr–So' : 'Für Mo–Do') : 'Einkauf'}
+                <span className="font-normal text-stone-500 dark:text-stone-400">({open.length})</span>
+              </h2>
+              <ul className="space-y-1.5">
+                {open.map((group) => (
+                  <GroupRow
+                    key={group.key}
+                    group={group}
+                    tone={tone}
+                    onToggle={() => list.setChecked(group.itemIds, true)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )
+        })}
 
         {done.length > 0 && (
           <>
@@ -138,18 +160,41 @@ export function ShoppingPage() {
   )
 }
 
+// Grün = Einkauf für Mo–Do, Violett = für Fr–So.
+const TONES = {
+  early: { text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-600', edge: 'border-l-emerald-600' },
+  late: { text: 'text-violet-700 dark:text-violet-400', dot: 'bg-violet-600', edge: 'border-l-violet-600' },
+}
+type Tone = (typeof TONES)[keyof typeof TONES]
+
 const weekdayShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short' })
 
-function sourceLabel(group: ItemGroup) {
-  const parts = group.sources.map((s) => {
-    const date = parseISODate(s.day)
-    return date ? `${weekdayShort.format(date).replace('.', '')} · ${s.title}` : s.title
-  })
-  if (group.hasManual) parts.push('eigener Artikel')
-  return parts.join(', ')
+function SourceLine({ group }: { group: ItemGroup }) {
+  if (group.sources.length === 0 && !group.hasManual) return null
+  return (
+    <span className="block truncate text-xs text-stone-500 dark:text-stone-400">
+      {group.sources.map((s, i) => {
+        const date = parseISODate(s.day)
+        const tone = s.day && TONES[isLateDay(s.day) ? 'late' : 'early']
+        return (
+          <span key={i}>
+            {i > 0 && ', '}
+            {date && (
+              <span className={group.checked || !tone ? '' : `font-semibold ${tone.text}`}>
+                {weekdayShort.format(date).replace('.', '')}
+              </span>
+            )}
+            {date && ' · '}
+            {s.title}
+          </span>
+        )
+      })}
+      {group.hasManual && `${group.sources.length > 0 ? ', ' : ''}eigener Artikel`}
+    </span>
+  )
 }
 
-function GroupRow({ group, onToggle }: { group: ItemGroup; onToggle: () => void }) {
+function GroupRow({ group, tone, onToggle }: { group: ItemGroup; tone?: Tone; onToggle: () => void }) {
   return (
     <li>
       <button
@@ -160,7 +205,7 @@ function GroupRow({ group, onToggle }: { group: ItemGroup; onToggle: () => void 
           group.checked
             ? 'bg-stone-100 text-stone-400 dark:bg-stone-900/50 dark:text-stone-500'
             : 'bg-white hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800'
-        }`}
+        } ${tone ? `border-l-4 ${tone.edge}` : ''}`}
       >
         <span
           className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold ${
@@ -176,9 +221,7 @@ function GroupRow({ group, onToggle }: { group: ItemGroup; onToggle: () => void 
           <span className={`block text-lg leading-tight font-medium ${group.checked ? 'line-through' : ''}`}>
             {group.name}
           </span>
-          {sourceLabel(group) && (
-            <span className="block truncate text-xs text-stone-500 dark:text-stone-400">{sourceLabel(group)}</span>
-          )}
+          <SourceLine group={group} />
         </span>
         <span className="shrink-0 text-right text-sm tabular-nums text-stone-600 dark:text-stone-300">
           {group.amounts
