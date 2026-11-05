@@ -5,42 +5,43 @@ import { ServingsStepper } from '../components/ServingsStepper'
 import { Button, Card, ErrorText } from '../components/ui'
 import type { Tables } from '../lib/database.types'
 import { DEFAULT_SERVINGS, formatAmount, ingredientAmount, stepServings, stepTextForServings } from '../lib/servings'
-import { readStorage, removeStorage, writeStorage } from '../lib/storage'
+import { getStoredRecipe, putStoredRecipe, syncRecipes, type StoredRecipe } from '../lib/recipeStore'
 import { errorMessage, isNetworkError, supabase } from '../lib/supabase'
 
 type Ingredient = Tables<'recipe_ingredients'>
-type Recipe = Tables<'recipes'> & { recipe_ingredients: Ingredient[] }
+type Recipe = StoredRecipe
 type Step = { text: string; image_url: string | null }
 
 export function RecipeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  // Zuletzt geladene Fassung – damit man offline nachkochen kann.
-  const cacheKey = `recipe:${id}`
-  const [recipe, setRecipe] = useState<Recipe | null | undefined>(() => readStorage<Recipe | undefined>(cacheKey, undefined))
+  const [recipe, setRecipe] = useState<Recipe | null | undefined>(undefined)
   const [servings, setServings] = useState(DEFAULT_SERVINGS)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!id) return
+    let fresh = false
+    // Sofort die Fassung vom Gerät zeigen (auch offline), dann vom Server aktualisieren.
+    void getStoredRecipe(id).then((stored) => {
+      if (!fresh && stored) setRecipe(stored)
+    })
     supabase
       .from('recipes')
       .select('*, recipe_ingredients (*)')
       .eq('id', id)
       .order('position', { referencedTable: 'recipe_ingredients' })
       .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          // Offline mit gespeicherter Fassung: einfach diese weiter anzeigen.
-          if (isNetworkError(error) && readStorage(cacheKey, null)) return
-          setError(errorMessage(error))
-        }
+      .then(async ({ data, error }) => {
+        // Offline mit gespeicherter Fassung: einfach diese weiter anzeigen.
+        if (error && isNetworkError(error) && (await getStoredRecipe(id))) return
+        fresh = true
+        if (error) setError(errorMessage(error))
         setRecipe(data)
-        if (data) writeStorage(cacheKey, data)
-        else removeStorage(cacheKey)
+        if (data) void putStoredRecipe(data)
       })
-  }, [id, cacheKey])
+  }, [id])
 
   async function toggleOnList(ingredient: Ingredient) {
     const addToList = !ingredient.add_to_list
@@ -68,6 +69,7 @@ export function RecipeDetailPage() {
       setError(errorMessage(error))
       setDeleting(false)
     } else {
+      void syncRecipes().catch(() => undefined)
       navigate('/rezepte', { replace: true })
     }
   }

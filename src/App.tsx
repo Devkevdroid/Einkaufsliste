@@ -3,6 +3,7 @@ import { BottomNav } from './components/BottomNav'
 import { Splash } from './components/ui'
 import { AuthProvider, useAuth } from './lib/auth'
 import { HouseholdProvider, useHouseholdState } from './lib/household'
+import { useRecipeSync } from './lib/recipeStore'
 import { isSupabaseConfigured } from './lib/supabase'
 import { HouseholdSetupPage } from './pages/HouseholdSetupPage'
 import { LoginPage } from './pages/LoginPage'
@@ -43,6 +44,12 @@ function HouseholdGate() {
   if (loading) return <Splash />
   if (error) return <p className="p-6 text-red-700 dark:text-red-400">Fehler beim Laden: {error}</p>
   if (!household) return <HouseholdSetupPage />
+
+  return <MainApp householdId={household.id} />
+}
+
+function MainApp({ householdId }: { householdId: string }) {
+  useRecipeSync(householdId)
 
   return (
     <>

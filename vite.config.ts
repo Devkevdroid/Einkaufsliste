@@ -42,6 +42,19 @@ export default defineConfig({
         // Alle App-Adressen (/woche, /einkauf, …) offline mit index.html beantworten.
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
+        // Rezeptbilder von HelloFresh: aus dem Cache, den src/lib/recipeStore.ts für alle Rezepte füllt.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.hostname === 'img.hellofresh.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'rezeptbilder',
+              // HelloFresh antwortet mit „Vary: Accept“; <img> schickt einen anderen Accept-Header als fetch().
+              matchOptions: { ignoreVary: true },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
       },
     }),
   ],

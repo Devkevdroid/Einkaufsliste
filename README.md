@@ -176,8 +176,11 @@ Datei `vercel.json` sorgt dafür, dass Adressen wie `/einkauf` auch beim Neulade
 
 Offline: Die App selbst und die Einkaufsliste funktionieren ohne Netz. Abgehakte und neue
 Artikel werden gespeichert und automatisch übertragen, sobald wieder Verbindung besteht.
-Wochenplan und Rezepte zeigen offline den zuletzt geladenen Stand (nur lesen; Rezeptbilder
-fehlen dann). Ändern lässt sich der Plan nur mit Verbindung.
+**Alle Rezepte** des Haushalts werden samt Bildern auf dem Handy gespeichert (IndexedDB und
+Bild-Cache) und sind offline vollständig lesbar. Die App gleicht sie beim Start, nach einer
+Funkloch-Pause und bei Änderungen vom anderen Gerät ab und lädt dabei nur Neues oder Geändertes
+(etwa 0,2 MB pro Rezept, einmalig). Der Wochenplan zeigt offline den zuletzt geladenen Stand.
+Ändern lassen sich Plan und Rezepte nur mit Verbindung.
 
 Neue Versionen lädt die App im Hintergrund; sie sind ab dem nächsten Öffnen aktiv.
 

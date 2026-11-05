@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Page, Placeholder } from '../components/Page'
 import { ErrorText } from '../components/ui'
-import { errorMessage, supabase } from '../lib/supabase'
+import { getStoredRecipes } from '../lib/recipeStore'
+import { errorMessage, isNetworkError, supabase } from '../lib/supabase'
 import { matchesSearch } from '../lib/text'
 
 type RecipeSummary = {
@@ -18,16 +19,29 @@ export function RecipesPage() {
   const savedId = (location.state as { savedId?: string } | null)?.savedId
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [offline, setOffline] = useState(false)
   const [query, setQuery] = useState('')
 
   useEffect(() => {
+    let fresh = false
+    // Sofort die auf dem Gerät gespeicherten Rezepte zeigen, dann vom Server aktualisieren.
+    void getStoredRecipes().then((stored) => {
+      if (!fresh && stored.length > 0) setRecipes(stored.sort((a, b) => b.created_at.localeCompare(a.created_at)))
+    })
     supabase
       .from('recipes')
       .select('id, title, subtitle, image_url, prep_minutes')
       .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) setError(errorMessage(error))
-        else setRecipes(data)
+      .then(async ({ data, error }) => {
+        if (!error) {
+          fresh = true
+          setRecipes(data)
+          setOffline(false)
+        } else if (isNetworkError(error) && (await getStoredRecipes()).length > 0) {
+          setOffline(true)
+        } else {
+          setError(errorMessage(error))
+        }
       })
   }, [])
 
@@ -52,6 +66,11 @@ export function RecipesPage() {
           </p>
         )}
         <ErrorText>{error}</ErrorText>
+        {offline && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+            Offline – du siehst die auf dem Handy gespeicherten Rezepte.
+          </p>
+        )}
 
         {recipes && recipes.length > 0 && (
           <input
