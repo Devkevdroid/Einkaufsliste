@@ -1,5 +1,7 @@
 // Portionen umrechnen und Mengen anzeigen. Reine Funktionen ohne React – auch mit Node testbar.
 
+import { htmlToText } from './text.ts'
+
 export type Amount = { amount: number | null; unit: string | null }
 
 /** Unsere übliche Portionszahl: beim Import, beim Einplanen und in der Rezeptansicht. */
@@ -81,7 +83,8 @@ export function stepServings(servings: number): 2 | 3 | 4 {
   return servings <= 2 ? 2 : servings === 3 ? 3 : 4
 }
 
-export function stepTextForServings(text: string, servings: number): string {
+export function stepTextForServings(html: string, servings: number): string {
+  const text = htmlToText(html)
   const target = stepServings(servings)
   let out = ''
   let last = 0

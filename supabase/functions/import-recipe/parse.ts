@@ -308,7 +308,7 @@ function cleanText(text: string): string {
 
 /** Entfernt Markdown-Escapes (z. B. "Wasser\*") und trennt Sätze mit Doppel-Leerzeichen in Zeilen. */
 function cleanStepText(text: string): string {
-  return decodeEntities(text)
+  return decodeEntities(text.replace(/<\/p>|<br\s*\/?>|<\/li>/gi, '\n').replace(/<[^>]*>/g, ''))
     .replace(/\\\*/g, '')
     .replace(/\*\*/g, '')
     .replace(/[ \t]{2,}/g, '\n')

@@ -31,6 +31,11 @@ assert.equal(
 // Hochrechnen, wenn es keine exakten Werte gibt
 assert.deepEqual(amountForServings({ '2': { amount: 150, unit: 'g' }, '4': { amount: 300, unit: 'g' } }, 6), { amount: 450, unit: 'g' })
 assert.deepEqual(amountForServings({ '2': { amount: 0.5, unit: 'Packung' } }, 3), { amount: 0.75, unit: 'Packung' })
+// Neuere HelloFresh-Rezepte liefern die Schritte als HTML
+assert.equal(
+  stepTextForServings('<p dir="ltr">Erhitze 400 ml [600 ml | 800 ml] Wasser. </p>\n<p>Burrata &amp; Salat.</p>', 4),
+  'Erhitze 800 ml Wasser.\nBurrata & Salat.',
+)
 console.log('✅ Hilfsfunktionen für Portionen und Kochschritte')
 
 for (const url of urls.length ? urls : examples) {
