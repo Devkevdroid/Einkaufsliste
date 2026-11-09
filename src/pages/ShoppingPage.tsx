@@ -29,7 +29,8 @@ export function ShoppingPage() {
   const [editing, setEditing] = useState<ItemGroup | null>(null)
 
   const trips = useMemo(() => splitByTrip(list.items ?? []), [list.items])
-  const done = trips.flatMap((t) => t.groups.filter((g) => g.checked))
+  // Unter „Erledigt“ steht nur, was zweimal angetippt wurde; einmal Abgehaktes bleibt mit Haken an seinem Platz.
+  const done = trips.flatMap((t) => t.groups.filter((g) => g.archived))
   // Stehen mehrere Wochen auf der Liste, kommt die Kalenderwoche in die Überschrift.
   const multipleWeeks = new Set(trips.map((t) => t.monday)).size > 1
 
@@ -124,8 +125,9 @@ export function ShoppingPage() {
         )}
 
         {trips.map((trip) => {
-          const open = trip.groups.filter((g) => !g.checked)
-          if (open.length === 0) return null
+          const visible = trip.groups.filter((g) => !g.archived)
+          const open = visible.filter((g) => !g.checked)
+          if (visible.length === 0) return null
           const tone = TONES[trip.late ? 'late' : 'early']
           const week = multipleWeeks && trip.monday ? `KW ${isoWeek(parseISODate(trip.monday)!)} · ` : ''
           return (
@@ -137,12 +139,13 @@ export function ShoppingPage() {
                 <span className="font-normal text-stone-500 dark:text-stone-400">({open.length})</span>
               </h2>
               <ul className="space-y-1.5">
-                {open.map((group) => (
+                {visible.map((group) => (
                   <GroupRow
                     key={group.key}
                     {...rowProps(group)}
                     tone={tone}
-                    onToggle={() => list.setChecked(group.itemIds, true)}
+                    // 1. Tippen: Haken, bleibt stehen – 2. Tippen: wandert zu „Erledigt“
+                    onToggle={() => list.setChecked(group.itemIds, true, group.checked)}
                   />
                 ))}
               </ul>

@@ -155,7 +155,9 @@ export async function addRecipeToList(
 type NewItem = { id: string; name: string; amount: number | null; unit: string | null }
 
 type Op =
-  | { kind: 'check'; ids: string[]; checked: boolean; at: string }
+  // archived fehlt bei Änderungen, die noch von der alten App-Version in der Warteschlange liegen:
+  // damals hieß abgehakt immer auch „unter Erledigt“.
+  | { kind: 'check'; ids: string[]; checked: boolean; archived?: boolean; at: string }
   | { kind: 'add'; item: NewItem; at: string }
   | { kind: 'delete'; ids: string[] }
   | { kind: 'update'; id: string; changes: ItemChanges }
@@ -165,12 +167,22 @@ export type ItemChanges = { name: string; amount: number | null; unit: string | 
 function applyOp(items: ListItem[], op: Op): ListItem[] {
   switch (op.kind) {
     case 'check':
-      return items.map((i) => (op.ids.includes(i.id) ? { ...i, checked: op.checked } : i))
+      return items.map((i) =>
+        op.ids.includes(i.id) ? { ...i, checked: op.checked, archived: op.archived ?? op.checked } : i,
+      )
     case 'add':
       if (items.some((i) => i.id === op.item.id)) return items
       return [
         ...items,
-        { ...op.item, checked: false, source: 'manual', plan_day: null, recipe_title: null, created_at: op.at },
+        {
+          ...op.item,
+          checked: false,
+          archived: false,
+          source: 'manual',
+          plan_day: null,
+          recipe_title: null,
+          created_at: op.at,
+        },
       ]
     case 'delete':
       return items.filter((i) => !op.ids.includes(i.id))
@@ -184,7 +196,11 @@ async function sendOp(op: Op) {
     op.kind === 'check'
       ? supabase
           .from('shopping_items')
-          .update({ checked: op.checked, checked_at: op.checked ? op.at : null })
+          .update({
+            checked: op.checked,
+            archived: op.archived ?? op.checked,
+            checked_at: op.checked ? op.at : null,
+          })
           .in('id', op.ids)
       : op.kind === 'add'
         ? supabase.from('shopping_items').upsert({ ...op.item, source: 'manual', created_at: op.at }, { ignoreDuplicates: true })
@@ -217,7 +233,7 @@ export function useShoppingList(householdId: string) {
   const refresh = useCallback(async () => {
     const { data, error } = await supabase
       .from('shopping_items')
-      .select('id, name, amount, unit, checked, source, plan_day, created_at, recipe:recipes (title)')
+      .select('id, name, amount, unit, checked, archived, source, plan_day, created_at, recipe:recipes (title)')
       .order('created_at')
     if (error) {
       if (!isNetworkError(error)) setError(errorMessage(error))
@@ -314,8 +330,9 @@ export function useShoppingList(householdId: string) {
     pending,
     error,
     refresh,
-    setChecked: (ids: string[], checked: boolean) =>
-      mutate({ kind: 'check', ids, checked, at: new Date().toISOString() }),
+    /** Haken setzen/entfernen; archived = nach unten zu „Erledigt“ verschieben. */
+    setChecked: (ids: string[], checked: boolean, archived = false) =>
+      mutate({ kind: 'check', ids, checked, archived, at: new Date().toISOString() }),
     add: (item: Omit<NewItem, 'id'>) =>
       mutate({ kind: 'add', item: { ...item, id: crypto.randomUUID() }, at: new Date().toISOString() }),
     remove: (ids: string[]) => mutate({ kind: 'delete', ids }),

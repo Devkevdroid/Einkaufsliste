@@ -9,6 +9,8 @@ export type ListItem = {
   amount: number | null
   unit: string | null
   checked: boolean
+  /** Abgehakt und nach unten zu „Erledigt“ verschoben (zweites Antippen) */
+  archived: boolean
   source: string
   plan_day: string | null
   recipe_title: string | null
@@ -24,6 +26,7 @@ export type ItemGroup = {
   sources: { day: string | null; title: string }[]
   hasManual: boolean
   checked: boolean
+  archived: boolean
   itemIds: string[]
 }
 
@@ -38,11 +41,21 @@ export function groupItems(items: ListItem[]): ItemGroup[] {
     const key = normalize(item.name)
     let group = groups.get(key)
     if (!group) {
-      group = { key, name: item.name.trim(), amounts: [], sources: [], hasManual: false, checked: true, itemIds: [] }
+      group = {
+        key,
+        name: item.name.trim(),
+        amounts: [],
+        sources: [],
+        hasManual: false,
+        checked: true,
+        archived: true,
+        itemIds: [],
+      }
       groups.set(key, group)
     }
     group.itemIds.push(item.id)
     group.checked &&= item.checked
+    group.archived &&= item.archived
 
     const sameUnit = group.amounts.find((a) => unitKey(a.unit) === unitKey(item.unit))
     if (!sameUnit) {
@@ -62,14 +75,10 @@ export function groupItems(items: ListItem[]): ItemGroup[] {
 
   const all = [...groups.values()]
   for (const group of all) group.sources.sort((a, b) => (a.day ?? '').localeCompare(b.day ?? ''))
-  // Offenes oben, nach Tag sortiert (eigene Artikel ohne Tag danach), dann alphabetisch; Erledigtes ans Ende.
+  // Nach Tag sortiert (eigene Artikel ohne Tag danach), dann alphabetisch.
+  // Abgehaktes bleibt an seinem Platz, damit beim Antippen nichts in der Liste springt.
   const firstDay = (g: ItemGroup) => g.sources[0]?.day ?? '9999'
-  return all.sort(
-    (a, b) =>
-      Number(a.checked) - Number(b.checked) ||
-      firstDay(a).localeCompare(firstDay(b)) ||
-      a.name.localeCompare(b.name, 'de'),
-  )
+  return all.sort((a, b) => firstDay(a).localeCompare(firstDay(b)) || a.name.localeCompare(b.name, 'de'))
 }
 
 export type Trip = {

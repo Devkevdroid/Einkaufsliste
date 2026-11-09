@@ -13,6 +13,7 @@ function item(name: string, amount: number | null, unit: string | null, extra: P
     amount,
     unit,
     checked: false,
+    archived: false,
     source: 'plan',
     plan_day: '2026-11-02',
     recipe_title: 'Rezept A',
@@ -45,11 +46,11 @@ assert.deepEqual(byName.salz.amounts, [{ amount: null, unit: 'nach Geschmack' }]
 assert.equal(byName.milch.hasManual, true)
 assert.equal(byName.zwiebel.checked, false, 'nur teilweise abgehakt = offen')
 assert.deepEqual(byName.zwiebel.amounts, [{ amount: 3, unit: 'Stück' }])
-assert.equal(groups.at(-1)?.name, 'Brot', 'Erledigtes steht am Ende')
+assert.equal(byName.brot.checked, true)
 assert.deepEqual(
   groups.map((g) => g.name),
-  ['Paprika', 'Salz', 'Tomatenmark', 'Zwiebel', 'Milch', 'Brot'],
-  'offen nach Tag, dann alphabetisch; eigene Artikel danach; Erledigtes am Ende',
+  ['Paprika', 'Salz', 'Tomatenmark', 'Zwiebel', 'Brot', 'Milch'],
+  'nach Tag, dann alphabetisch; eigene Artikel danach; Abgehaktes bleibt an seinem Platz',
 )
 console.log('✅ Zusammenfassen der Einkaufsliste')
 
