@@ -246,6 +246,8 @@ function SourceLine({ group }: { group: ItemGroup }) {
 
 /** Breite der Knöpfe hinter einer aufgewischten Zeile (2 × 80 px). */
 const ACTIONS_WIDTH = 160
+/** Ist die Zeile schon offen, löscht ein zweites Wischen um mindestens so viel weiter direkt. */
+const DELETE_SWIPE = 60
 
 type GroupRowProps = {
   group: ItemGroup
@@ -265,6 +267,8 @@ function GroupRow({ group, tone, swiped, onSwipe, onToggle, onEdit, onDelete }: 
   const dragValue = useRef(0)
   const suppressClick = useRef(false)
   const offset = drag ?? (swiped ? -ACTIONS_WIDTH : 0)
+  // Zweites Wischen weit genug: Loslassen löscht (Löschen-Knopf füllt dann die ganze Fläche).
+  const deleteArmed = swiped && offset <= -(ACTIONS_WIDTH + DELETE_SWIPE)
 
   function onPointerDown(event: PointerEvent<HTMLButtonElement>) {
     gesture.current = { x: event.clientX, y: event.clientY, base: swiped ? -ACTIONS_WIDTH : 0, swiping: false }
@@ -280,7 +284,8 @@ function GroupRow({ group, tone, swiped, onSwipe, onToggle, onEdit, onDelete }: 
       g.swiping = true
       event.currentTarget.setPointerCapture(event.pointerId)
     }
-    dragValue.current = Math.min(0, Math.max(-ACTIONS_WIDTH - 40, g.base + dx))
+    const limit = g.base < 0 ? ACTIONS_WIDTH + DELETE_SWIPE + 80 : ACTIONS_WIDTH + 40
+    dragValue.current = Math.min(0, Math.max(-limit, g.base + dx))
     setDrag(dragValue.current)
   }
 
@@ -289,8 +294,9 @@ function GroupRow({ group, tone, swiped, onSwipe, onToggle, onEdit, onDelete }: 
     gesture.current = null
     if (!g?.swiping) return
     suppressClick.current = true
-    onSwipe(dragValue.current < -ACTIONS_WIDTH / 2)
     setDrag(null)
+    if (g.base < 0 && dragValue.current <= -(ACTIONS_WIDTH + DELETE_SWIPE)) onDelete()
+    else onSwipe(dragValue.current < -ACTIONS_WIDTH / 2)
   }
 
   function onClick() {
@@ -305,15 +311,20 @@ function GroupRow({ group, tone, swiped, onSwipe, onToggle, onEdit, onDelete }: 
   return (
     <li className="relative overflow-hidden rounded-2xl">
       {offset < 0 && (
-        <div className="absolute inset-y-0 right-0 flex text-sm font-medium text-white">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="w-20 bg-stone-500 hover:bg-stone-600 dark:bg-stone-600 dark:hover:bg-stone-500"
-          >
-            Bearbeiten
-          </button>
-          <button type="button" onClick={onDelete} className="w-20 bg-red-600 hover:bg-red-700">
+        <div
+          className="absolute inset-y-0 right-0 flex text-sm font-medium text-white"
+          style={{ width: Math.max(ACTIONS_WIDTH, -offset) }}
+        >
+          {!deleteArmed && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="w-20 shrink-0 bg-stone-500 hover:bg-stone-600 dark:bg-stone-600 dark:hover:bg-stone-500"
+            >
+              Bearbeiten
+            </button>
+          )}
+          <button type="button" onClick={onDelete} className="min-w-20 flex-1 bg-red-600 hover:bg-red-700">
             Löschen
           </button>
         </div>
