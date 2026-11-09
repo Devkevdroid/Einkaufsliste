@@ -27,7 +27,7 @@ export type ItemGroup = {
   itemIds: string[]
 }
 
-function unitKey(unit: string | null) {
+export function unitKey(unit: string | null) {
   return unit ? normalize(unit) : ''
 }
 

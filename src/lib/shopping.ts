@@ -158,6 +158,9 @@ type Op =
   | { kind: 'check'; ids: string[]; checked: boolean; at: string }
   | { kind: 'add'; item: NewItem; at: string }
   | { kind: 'delete'; ids: string[] }
+  | { kind: 'update'; id: string; changes: ItemChanges }
+
+export type ItemChanges = { name: string; amount: number | null; unit: string | null }
 
 function applyOp(items: ListItem[], op: Op): ListItem[] {
   switch (op.kind) {
@@ -171,6 +174,8 @@ function applyOp(items: ListItem[], op: Op): ListItem[] {
       ]
     case 'delete':
       return items.filter((i) => !op.ids.includes(i.id))
+    case 'update':
+      return items.map((i) => (i.id === op.id ? { ...i, ...op.changes } : i))
   }
 }
 
@@ -183,7 +188,9 @@ async function sendOp(op: Op) {
           .in('id', op.ids)
       : op.kind === 'add'
         ? supabase.from('shopping_items').upsert({ ...op.item, source: 'manual', created_at: op.at }, { ignoreDuplicates: true })
-        : supabase.from('shopping_items').delete().in('id', op.ids)
+        : op.kind === 'update'
+          ? supabase.from('shopping_items').update(op.changes).eq('id', op.id)
+          : supabase.from('shopping_items').delete().in('id', op.ids)
   const { error } = await query
   if (!error) return
   if (isNetworkError(error)) throw error
@@ -312,5 +319,6 @@ export function useShoppingList(householdId: string) {
     add: (item: Omit<NewItem, 'id'>) =>
       mutate({ kind: 'add', item: { ...item, id: crypto.randomUUID() }, at: new Date().toISOString() }),
     remove: (ids: string[]) => mutate({ kind: 'delete', ids }),
+    update: (id: string, changes: ItemChanges) => mutate({ kind: 'update', id, changes }),
   }
 }

@@ -1,12 +1,12 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent, type PointerEvent } from 'react'
 import { Page, Placeholder } from '../components/Page'
 import { Sheet } from '../components/Sheet'
 import { Button, ErrorText } from '../components/ui'
 import { addDays, isoWeek, parseISODate, startOfWeek, toISODate, weekRange } from '../lib/dates'
 import { useHousehold } from '../lib/household'
-import { formatAmount } from '../lib/servings'
+import { formatAmount, formatNumber, parseAmountInput } from '../lib/servings'
 import { generateFromPlan, useShoppingList } from '../lib/shopping'
-import { isLateDay, parseItemInput, sourceRuns, splitByTrip, type ItemGroup } from '../lib/shoppingGroups'
+import { isLateDay, parseItemInput, sourceRuns, splitByTrip, unitKey, type ItemGroup } from '../lib/shoppingGroups'
 
 const HIDE_CHECKED_KEY = 'shopping-hide-checked'
 
@@ -24,6 +24,9 @@ export function ShoppingPage() {
   const [text, setText] = useState('')
   const [hideChecked, setHideChecked] = useState(readHideChecked)
   const [showGenerator, setShowGenerator] = useState(false)
+  // Nur eine Zeile gleichzeitig aufgewischt
+  const [swipedKey, setSwipedKey] = useState<string | null>(null)
+  const [editing, setEditing] = useState<ItemGroup | null>(null)
 
   const trips = useMemo(() => splitByTrip(list.items ?? []), [list.items])
   const done = trips.flatMap((t) => t.groups.filter((g) => g.checked))
@@ -52,6 +55,38 @@ export function ShoppingPage() {
     if (!confirm(`${done.length} erledigte Artikel endgültig von der Liste löschen?`)) return
     list.remove(done.flatMap((g) => g.itemIds))
   }
+
+  /**
+   * Speichert Änderungen an einer Zeile. Eine Zeile kann mehrere Artikel zusammenfassen (z. B. Zwiebeln aus
+   * zwei Rezepten): je Einheit bleibt dann ein Artikel mit der neuen Gesamtmenge, die übrigen werden gelöscht.
+   */
+  function saveEdit(group: ItemGroup, name: string, amounts: EditAmount[]) {
+    const members = (list.items ?? []).filter((i) => group.itemIds.includes(i.id))
+    group.amounts.forEach((original, index) => {
+      const next = amounts[index]
+      const unit = next.unit.trim() || null
+      if (name === group.name && next.amount === original.amount && unit === original.unit) return
+      const [first, ...rest] = members.filter((i) => unitKey(i.unit) === unitKey(original.unit))
+      if (!first) return
+      list.update(first.id, { name, amount: next.amount, unit })
+      if (rest.length > 0) list.remove(rest.map((i) => i.id))
+    })
+    setEditing(null)
+  }
+
+  const rowProps = (group: ItemGroup) => ({
+    group,
+    swiped: swipedKey === group.key,
+    onSwipe: (open: boolean) => setSwipedKey(open ? group.key : null),
+    onEdit: () => {
+      setSwipedKey(null)
+      setEditing(group)
+    },
+    onDelete: () => {
+      setSwipedKey(null)
+      list.remove(group.itemIds)
+    },
+  })
 
   return (
     <Page title="Einkaufsliste">
@@ -105,7 +140,7 @@ export function ShoppingPage() {
                 {open.map((group) => (
                   <GroupRow
                     key={group.key}
-                    group={group}
+                    {...rowProps(group)}
                     tone={tone}
                     onToggle={() => list.setChecked(group.itemIds, true)}
                   />
@@ -139,13 +174,25 @@ export function ShoppingPage() {
             {!hideChecked && (
               <ul className="space-y-1.5">
                 {done.map((group) => (
-                  <GroupRow key={group.key} group={group} onToggle={() => list.setChecked(group.itemIds, false)} />
+                  <GroupRow key={group.key} {...rowProps(group)} onToggle={() => list.setChecked(group.itemIds, false)} />
                 ))}
               </ul>
             )}
           </>
         )}
       </div>
+
+      {editing && (
+        <EditSheet
+          group={editing}
+          onClose={() => setEditing(null)}
+          onSave={(name, amounts) => saveEdit(editing, name, amounts)}
+          onDelete={() => {
+            list.remove(editing.itemIds)
+            setEditing(null)
+          }}
+        />
+      )}
 
       {showGenerator && (
         <GeneratorSheet
@@ -197,16 +244,97 @@ function SourceLine({ group }: { group: ItemGroup }) {
   )
 }
 
-function GroupRow({ group, tone, onToggle }: { group: ItemGroup; tone?: Tone; onToggle: () => void }) {
+/** Breite der Knöpfe hinter einer aufgewischten Zeile (2 × 80 px). */
+const ACTIONS_WIDTH = 160
+
+type GroupRowProps = {
+  group: ItemGroup
+  tone?: Tone
+  /** Zeile ist nach links gewischt, Bearbeiten/Löschen sichtbar */
+  swiped: boolean
+  onSwipe: (open: boolean) => void
+  onToggle: () => void
+  onEdit: () => void
+  onDelete: () => void
+}
+
+function GroupRow({ group, tone, swiped, onSwipe, onToggle, onEdit, onDelete }: GroupRowProps) {
+  // Wischen nach links: Zeile folgt dem Finger, ab der halben Strecke rastet sie offen ein.
+  const [drag, setDrag] = useState<number | null>(null)
+  const gesture = useRef<{ x: number; y: number; base: number; swiping: boolean } | null>(null)
+  const dragValue = useRef(0)
+  const suppressClick = useRef(false)
+  const offset = drag ?? (swiped ? -ACTIONS_WIDTH : 0)
+
+  function onPointerDown(event: PointerEvent<HTMLButtonElement>) {
+    gesture.current = { x: event.clientX, y: event.clientY, base: swiped ? -ACTIONS_WIDTH : 0, swiping: false }
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLButtonElement>) {
+    const g = gesture.current
+    if (!g) return
+    const dx = event.clientX - g.x
+    if (!g.swiping) {
+      // Erst ab ein paar Pixeln und nur bei eher waagerechter Bewegung – sonst ist es Scrollen oder Tippen.
+      if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(event.clientY - g.y)) return
+      g.swiping = true
+      event.currentTarget.setPointerCapture(event.pointerId)
+    }
+    dragValue.current = Math.min(0, Math.max(-ACTIONS_WIDTH - 40, g.base + dx))
+    setDrag(dragValue.current)
+  }
+
+  function onPointerUp() {
+    const g = gesture.current
+    gesture.current = null
+    if (!g?.swiping) return
+    suppressClick.current = true
+    onSwipe(dragValue.current < -ACTIONS_WIDTH / 2)
+    setDrag(null)
+  }
+
+  function onClick() {
+    if (suppressClick.current) {
+      suppressClick.current = false
+      return
+    }
+    if (swiped) onSwipe(false)
+    else onToggle()
+  }
+
   return (
-    <li>
+    <li className="relative overflow-hidden rounded-2xl">
+      {offset < 0 && (
+        <div className="absolute inset-y-0 right-0 flex text-sm font-medium text-white">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="w-20 bg-stone-500 hover:bg-stone-600 dark:bg-stone-600 dark:hover:bg-stone-500"
+          >
+            Bearbeiten
+          </button>
+          <button type="button" onClick={onDelete} className="w-20 bg-red-600 hover:bg-red-700">
+            Löschen
+          </button>
+        </div>
+      )}
       <button
         type="button"
-        onClick={onToggle}
+        onClick={onClick}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => {
+          gesture.current = null
+          setDrag(null)
+        }}
         aria-pressed={group.checked}
-        className={`flex min-h-16 w-full items-center gap-3 rounded-2xl px-3 py-2 text-left shadow-sm transition-colors active:scale-[0.99] ${
+        style={{ transform: offset ? `translateX(${offset}px)` : undefined }}
+        className={`relative flex min-h-16 w-full touch-pan-y items-center gap-3 rounded-2xl px-3 py-2 text-left shadow-sm select-none ${
+          drag === null ? 'transition-[transform,background-color] duration-200' : ''
+        } ${
           group.checked
-            ? 'bg-stone-100 text-stone-400 dark:bg-stone-900/50 dark:text-stone-500'
+            ? 'bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-500'
             : 'bg-white hover:bg-stone-50 dark:bg-stone-900 dark:hover:bg-stone-800'
         } ${tone ? `border-l-4 ${tone.edge}` : ''}`}
       >
@@ -237,6 +365,109 @@ function GroupRow({ group, tone, onToggle }: { group: ItemGroup; tone?: Tone; on
         </span>
       </button>
     </li>
+  )
+}
+
+type EditAmount = { amount: number | null; unit: string; text: string }
+
+/** Sinnvolle Schritte für − / +: Gramm in 10ern bzw. 50ern, Kilo/Liter in halben, sonst ganze. */
+function stepFor(unit: string, amount: number | null) {
+  if (/^(g|ml)$/i.test(unit.trim())) return (amount ?? 0) >= 100 ? 50 : 10
+  if (/^(kg|l)$/i.test(unit.trim())) return 0.5
+  return 1
+}
+
+type EditSheetProps = {
+  group: ItemGroup
+  onClose: () => void
+  onSave: (name: string, amounts: EditAmount[]) => void
+  onDelete: () => void
+}
+
+function EditSheet({ group, onClose, onSave, onDelete }: EditSheetProps) {
+  const [name, setName] = useState(group.name)
+  const [amounts, setAmounts] = useState<EditAmount[]>(() =>
+    group.amounts.map((a) => ({
+      amount: a.amount,
+      unit: a.unit ?? '',
+      text: a.amount === null ? '' : formatNumber(a.amount),
+    })),
+  )
+
+  function change(index: number, next: Partial<EditAmount>) {
+    setAmounts((current) => current.map((a, i) => (i === index ? { ...a, ...next } : a)))
+  }
+
+  function nudge(index: number, direction: 1 | -1) {
+    const { amount, unit } = amounts[index]
+    const step = stepFor(unit, direction === -1 ? (amount ?? 0) - 1 : amount)
+    const value = Math.max(step, Math.round(((amount ?? 0) + direction * step) * 100) / 100)
+    change(index, { amount: value, text: formatNumber(value) })
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    if (name.trim()) onSave(name.trim(), amounts)
+  }
+
+  const inputClass =
+    'h-12 min-w-0 rounded-xl border border-stone-300 bg-white px-3 outline-none focus:border-emerald-600 dark:border-stone-700 dark:bg-stone-950'
+  const stepClass =
+    'flex size-12 shrink-0 items-center justify-center rounded-xl bg-stone-200 text-2xl font-medium hover:bg-stone-300 dark:bg-stone-800 dark:hover:bg-stone-700'
+
+  return (
+    <Sheet title="Artikel bearbeiten" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <label className="block space-y-1">
+          <span className="text-sm font-medium">Name</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={`${inputClass} w-full`} />
+        </label>
+
+        {amounts.map((a, index) => (
+          <div key={index} className="space-y-1">
+            <span className="text-sm font-medium">Menge</span>
+            <div className="flex items-center gap-2">
+              <button type="button" aria-label="Weniger" onClick={() => nudge(index, -1)} className={stepClass}>
+                −
+              </button>
+              <input
+                value={a.text}
+                onChange={(e) => change(index, { text: e.target.value, amount: parseAmountInput(e.target.value) })}
+                inputMode="decimal"
+                aria-label="Menge"
+                placeholder="–"
+                className={`${inputClass} w-20 text-center tabular-nums`}
+              />
+              <button type="button" aria-label="Mehr" onClick={() => nudge(index, 1)} className={stepClass}>
+                +
+              </button>
+              <input
+                value={a.unit}
+                onChange={(e) => change(index, { unit: e.target.value })}
+                aria-label="Einheit"
+                placeholder="Einheit"
+                className={`${inputClass} w-full flex-1`}
+              />
+            </div>
+          </div>
+        ))}
+
+        {group.itemIds.length > 1 && (
+          <p className="text-sm text-stone-500 dark:text-stone-400">
+            Diese Zeile fasst mehrere Rezepte zusammen. Beim Speichern wird daraus ein Artikel mit der neuen Menge.
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <Button type="button" variant="danger" onClick={onDelete}>
+            Löschen
+          </Button>
+          <Button type="submit" className="flex-1" disabled={!name.trim()}>
+            Speichern
+          </Button>
+        </div>
+      </form>
+    </Sheet>
   )
 }
 
