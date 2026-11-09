@@ -2,7 +2,7 @@
 // Ausführen: npm run test:shopping
 
 import assert from 'node:assert/strict'
-import { groupItems, parseItemInput, splitByTrip, type ListItem } from '../src/lib/shoppingGroups.ts'
+import { groupItems, parseItemInput, sourceRuns, splitByTrip, type ListItem } from '../src/lib/shoppingGroups.ts'
 
 let n = 0
 function item(name: string, amount: number | null, unit: string | null, extra: Partial<ListItem> = {}): ListItem {
@@ -58,7 +58,7 @@ const trips = splitByTrip([
   item('Feta', 200, 'g', { plan_day: '2026-11-05' }),
   item('Zwiebel', 1, 'Stück', { plan_day: '2026-11-02' }),
   item('Zwiebel', 2, 'Stück', { plan_day: '2026-11-08', recipe_title: 'Rezept C' }),
-  item('Burrata', 1, 'Stück', { plan_day: '2026-11-06' }),
+  item('Burrata', 1, 'Stück', { plan_day: '2026-11-06', recipe_title: 'Rezept D' }),
   item('Milch', 1, 'l', { source: 'manual', recipe_title: null, plan_day: null }),
   item('Reis', 300, 'g', { plan_day: '2026-11-09' }),
 ])
@@ -76,6 +76,34 @@ assert.equal(new Set(trips.flatMap((t) => t.groups.map((g) => g.key))).size, 6, 
 assert.deepEqual(splitByTrip([item('Brot', null, null, { source: 'manual', plan_day: null })]).map((t) => t.monday), [null])
 assert.deepEqual(splitByTrip([]), [])
 console.log('✅ Aufteilen in Mo–Do und Fr–So')
+
+// Do kochen, Fr Reste: gehört komplett zum Einkauf Mo–Do. So → Mo der Folgewoche ebenso zum Sonntag.
+const leftovers = splitByTrip([
+  item('Wildreis', 150, 'g', { plan_day: '2026-11-12', recipe_title: 'Bowl' }),
+  item('Wildreis', 150, 'g', { plan_day: '2026-11-13', recipe_title: 'Bowl' }),
+  item('Lachs', 2, 'Stück', { plan_day: '2026-11-15', recipe_title: 'Orzotto' }),
+  item('Lachs', 2, 'Stück', { plan_day: '2026-11-16', recipe_title: 'Orzotto' }),
+  item('Feta', 200, 'g', { plan_day: '2026-11-13', recipe_title: 'Salat' }),
+])
+assert.deepEqual(
+  leftovers.map((t) => [t.monday, t.late, t.groups.map((g) => `${g.name} ${g.amounts[0].amount}`)]),
+  [
+    ['2026-11-09', false, ['Wildreis 300']],
+    ['2026-11-09', true, ['Feta 200', 'Lachs 4']],
+  ],
+  'Folgetag mit gleichem Rezept zählt zum Kochtag',
+)
+assert.deepEqual(sourceRuns(leftovers[0].groups[0].sources), [{ from: '2026-11-12', to: '2026-11-13', title: 'Bowl' }])
+assert.deepEqual(
+  sourceRuns([
+    { day: '2026-11-12', title: 'Bowl' },
+    { day: '2026-11-13', title: 'Salat' },
+    { day: '2026-11-14', title: 'Bowl' },
+  ]).map((r) => `${r.from}–${r.to} ${r.title}`),
+  ['2026-11-12–2026-11-12 Bowl', '2026-11-13–2026-11-13 Salat', '2026-11-14–2026-11-14 Bowl'],
+  'nicht direkt aufeinanderfolgend = getrennt',
+)
+console.log('✅ Zwei-Tage-Gerichte (Kochen + Reste)')
 
 assert.deepEqual(parseItemInput('500 g Hackfleisch'), { name: 'Hackfleisch', amount: 500, unit: 'g' })
 assert.deepEqual(parseItemInput('2 Zwiebeln'), { name: 'Zwiebeln', amount: 2, unit: null })

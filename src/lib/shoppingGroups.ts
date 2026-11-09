@@ -1,6 +1,6 @@
 // Einkaufsliste anzeigen: gleiche Zutaten zusammenfassen. Reine Funktionen – auch mit Node testbar.
 
-import { parseISODate, startOfWeek, toISODate } from './dates.ts'
+import { addDays, parseISODate, startOfWeek, toISODate } from './dates.ts'
 import { normalize } from './text.ts'
 
 export type ListItem = {
@@ -86,20 +86,39 @@ export function isLateDay(day: string): boolean {
   return [5, 6, 0].includes(parseISODate(day)!.getDay())
 }
 
+function previousDay(day: string): string {
+  return toISODate(addDays(parseISODate(day)!, -1))
+}
+
 /**
- * Teilt die Liste in Einkäufe: Mo–Do und Fr–So je Woche, in zeitlicher Reihenfolge.
+ * Tag, an dem gekocht wird: Gleiches Rezept an aufeinanderfolgenden Tagen (z. B. Do kochen, Fr Reste)
+ * zählt als ein Gericht vom ersten Tag – auch über das Wochenende hinweg (So → Mo).
+ */
+function cookDayFinder(items: ListItem[]) {
+  const planned = new Set(items.filter((i) => i.plan_day && i.recipe_title).map((i) => `${i.recipe_title}|${i.plan_day}`))
+  return (item: ListItem & { plan_day: string }) => {
+    let day = item.plan_day
+    while (item.recipe_title && planned.has(`${item.recipe_title}|${previousDay(day)}`)) day = previousDay(day)
+    return day
+  }
+}
+
+/**
+ * Teilt die Liste in Einkäufe: Mo–Do und Fr–So je Woche, in zeitlicher Reihenfolge (nach Kochtag).
  * Eigene Artikel ohne Tag kommen zum ersten Einkauf.
  */
 export function splitByTrip(items: ListItem[]): Trip[] {
   const buckets = new Map<string, { late: boolean; monday: string | null; items: ListItem[] }>()
   const undated: ListItem[] = []
+  const cookDay = cookDayFinder(items)
   for (const item of items) {
     if (!item.plan_day) {
       undated.push(item)
       continue
     }
-    const monday = toISODate(startOfWeek(parseISODate(item.plan_day)!))
-    const late = isLateDay(item.plan_day)
+    const day = cookDay({ ...item, plan_day: item.plan_day })
+    const monday = toISODate(startOfWeek(parseISODate(day)!))
+    const late = isLateDay(day)
     const key = `${monday}:${late ? 2 : 1}`
     const bucket = buckets.get(key) ?? { late, monday, items: [] }
     bucket.items.push(item)
@@ -119,6 +138,19 @@ export function splitByTrip(items: ListItem[]): Trip[] {
     const groups = groupItems(items).map((g) => ({ ...g, key: `${key}|${g.key}` }))
     return { key, late, monday, groups }
   })
+}
+
+export type SourceRun = { from: string | null; to: string | null; title: string }
+
+/** Fasst gleiche Rezepte an Folgetagen zusammen: [Do Bowl, Fr Bowl] → [{ from: Do, to: Fr, title: Bowl }]. */
+export function sourceRuns(sources: ItemGroup['sources']): SourceRun[] {
+  const runs: SourceRun[] = []
+  for (const { day, title } of sources) {
+    const run = day ? runs.find((r) => r.title === title && r.to === previousDay(day)) : undefined
+    if (run) run.to = day
+    else runs.push({ from: day, to: day, title })
+  }
+  return runs
 }
 
 const UNITS: Record<string, string> = {

@@ -6,7 +6,7 @@ import { addDays, isoWeek, parseISODate, startOfWeek, toISODate, weekRange } fro
 import { useHousehold } from '../lib/household'
 import { formatAmount } from '../lib/servings'
 import { generateFromPlan, useShoppingList } from '../lib/shopping'
-import { isLateDay, parseItemInput, splitByTrip, type ItemGroup } from '../lib/shoppingGroups'
+import { isLateDay, parseItemInput, sourceRuns, splitByTrip, type ItemGroup } from '../lib/shoppingGroups'
 
 const HIDE_CHECKED_KEY = 'shopping-hide-checked'
 
@@ -168,24 +168,27 @@ const TONES = {
 type Tone = (typeof TONES)[keyof typeof TONES]
 
 const weekdayShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short' })
+const shortWeekday = (date: Date) => weekdayShort.format(date).replace('.', '')
 
 function SourceLine({ group }: { group: ItemGroup }) {
   if (group.sources.length === 0 && !group.hasManual) return null
   return (
     <span className="block truncate text-xs text-stone-500 dark:text-stone-400">
-      {group.sources.map((s, i) => {
-        const date = parseISODate(s.day)
-        const tone = s.day && TONES[isLateDay(s.day) ? 'late' : 'early']
+      {sourceRuns(group.sources).map((run, i) => {
+        const from = parseISODate(run.from)
+        const to = parseISODate(run.to)
+        const tone = run.from && TONES[isLateDay(run.from) ? 'late' : 'early']
         return (
           <span key={i}>
             {i > 0 && ', '}
-            {date && (
+            {from && (
               <span className={group.checked || !tone ? '' : `font-semibold ${tone.text}`}>
-                {weekdayShort.format(date).replace('.', '')}
+                {shortWeekday(from)}
+                {to && run.to !== run.from && `–${shortWeekday(to)}`}
               </span>
             )}
-            {date && ' · '}
-            {s.title}
+            {from && ' · '}
+            {run.title}
           </span>
         )
       })}
