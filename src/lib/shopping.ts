@@ -33,28 +33,58 @@ export async function generateFromPlan(from: string, to: string): Promise<{ reci
     .lte('plan_day', to)
   if (existingError) throw new Error(errorMessage(existingError))
 
-  const keep = new Set(existing.filter((i) => i.checked).map((i) => `${i.meal_plan_entry_id}|${normalize(i.name)}`))
-  const rows = entries.flatMap((entry) => {
-    const recipe = entry.recipe
-    if (!recipe) return []
-    const servings = entry.servings ?? recipe.servings
-    return [...recipe.recipe_ingredients]
-      .sort((a, b) => a.position - b.position)
-      .filter((i) => i.add_to_list && !keep.has(`${entry.id}|${normalize(i.name)}`))
-      .map((ingredient) => {
-        const { amount, unit } = ingredientAmount(ingredient, recipe.servings, servings)
-        return {
-          name: ingredient.name,
-          amount,
-          unit,
-          source: 'plan',
-          meal_plan_entry_id: entry.id,
-          recipe_id: recipe.id,
-          plan_day: entry.day,
-        }
-      })
-  })
+  const keep = keepKeys(existing)
+  const rows = entries.flatMap((entry) =>
+    entry.recipe ? ingredientRows(entry.recipe, entry.servings ?? entry.recipe.servings, entry, keep) : [],
+  )
+  await replaceItems(existing, rows)
+  return { recipes: entries.length, items: rows.length }
+}
 
+type RecipeForList = {
+  id: string
+  servings: number
+  recipe_ingredients: {
+    name: string
+    amount: number | null
+    unit: string | null
+    add_to_list: boolean
+    amounts_by_servings: unknown
+    position: number
+  }[]
+}
+type ExistingItem = { id: string; meal_plan_entry_id: string | null; name: string; checked: boolean }
+
+/** Bereits abgehakte Zutaten (je Plan-Eintrag) – die kommen nicht noch einmal auf die Liste. */
+function keepKeys(existing: ExistingItem[]) {
+  return new Set(existing.filter((i) => i.checked).map((i) => `${i.meal_plan_entry_id}|${normalize(i.name)}`))
+}
+
+function ingredientRows(
+  recipe: RecipeForList,
+  servings: number,
+  entry: { id: string; day: string } | null,
+  keep: Set<string>,
+) {
+  return [...recipe.recipe_ingredients]
+    .sort((a, b) => a.position - b.position)
+    .filter((i) => i.add_to_list && !keep.has(`${entry?.id ?? null}|${normalize(i.name)}`))
+    .map((ingredient) => {
+      const { amount, unit } = ingredientAmount(ingredient, recipe.servings, servings)
+      return {
+        name: ingredient.name,
+        amount,
+        unit,
+        source: 'plan',
+        meal_plan_entry_id: entry?.id ?? null,
+        recipe_id: recipe.id,
+        plan_day: entry?.day ?? null,
+      }
+    })
+}
+
+/** Ersetzt die noch offenen alten Artikel durch die neuen. */
+async function replaceItems(existing: ExistingItem[], rows: ReturnType<typeof ingredientRows>) {
   const removeIds = existing.filter((i) => !i.checked).map((i) => i.id)
   if (removeIds.length > 0) {
     const { error } = await supabase.from('shopping_items').delete().in('id', removeIds)
@@ -64,7 +94,54 @@ export async function generateFromPlan(from: string, to: string): Promise<{ reci
     const { error } = await supabase.from('shopping_items').insert(rows)
     if (error) throw new Error(errorMessage(error))
   }
-  return { recipes: entries.length, items: rows.length }
+}
+
+export type PlannedDay = { id: string; day: string; servings: number | null }
+
+/** Kommende Tage (ab heute), an denen das Rezept eingeplant ist. */
+export async function upcomingPlanDays(recipeId: string, today: string): Promise<PlannedDay[]> {
+  const { data, error } = await supabase
+    .from('meal_plan_entries')
+    .select('id, day, servings')
+    .eq('recipe_id', recipeId)
+    .gte('day', today)
+    .order('day')
+    .limit(7)
+  if (error) throw new Error(errorMessage(error))
+  return data
+}
+
+/**
+ * Ein einzelnes Rezept auf die Liste – für bestimmte geplante Tage (mit deren Portionen)
+ * oder ohne Tag mit frei gewählter Portionszahl. Wie beim Wochenplan werden offene Artikel
+ * desselben Rezepts/Tages ersetzt, abgehakte bleiben.
+ */
+export async function addRecipeToList(
+  recipe: RecipeForList,
+  target: { days: PlannedDay[] } | { servings: number },
+): Promise<number> {
+  let query = supabase
+    .from('shopping_items')
+    .select('id, meal_plan_entry_id, name, checked')
+    .eq('source', 'plan')
+    .eq('recipe_id', recipe.id)
+  query =
+    'days' in target
+      ? query.in(
+          'meal_plan_entry_id',
+          target.days.map((d) => d.id),
+        )
+      : query.is('meal_plan_entry_id', null)
+  const { data: existing, error } = await query
+  if (error) throw new Error(errorMessage(error))
+
+  const keep = keepKeys(existing)
+  const rows =
+    'days' in target
+      ? target.days.flatMap((day) => ingredientRows(recipe, day.servings ?? recipe.servings, day, keep))
+      : ingredientRows(recipe, target.servings, null, keep)
+  await replaceItems(existing, rows)
+  return rows.length
 }
 
 // ---------------------------------------------------------------------------

@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { Placeholder } from '../components/Page'
 import { ServingsStepper } from '../components/ServingsStepper'
+import { Sheet } from '../components/Sheet'
 import { Button, Card, ErrorText } from '../components/ui'
 import type { Tables } from '../lib/database.types'
 import { DEFAULT_SERVINGS, formatAmount, ingredientAmount, stepServings, stepTextForServings } from '../lib/servings'
+import { parseISODate, shortDate, toISODate, weekdayName } from '../lib/dates'
 import { getStoredRecipe, putStoredRecipe, syncRecipes, type StoredRecipe } from '../lib/recipeStore'
+import { addRecipeToList, upcomingPlanDays, type PlannedDay } from '../lib/shopping'
 import { errorMessage, isNetworkError, supabase } from '../lib/supabase'
 
 type Ingredient = Tables<'recipe_ingredients'>
@@ -19,6 +22,7 @@ export function RecipeDetailPage() {
   const [servings, setServings] = useState(DEFAULT_SERVINGS)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [showAddToList, setShowAddToList] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -124,7 +128,11 @@ export function RecipeDetailPage() {
             <span className="font-semibold">Portionen</span>
             <ServingsStepper value={servings} onChange={setServings} />
           </div>
+          <Button variant="secondary" className="mt-3 w-full" onClick={() => setShowAddToList(true)}>
+            Auf die Einkaufsliste
+          </Button>
         </Card>
+        {showAddToList && <AddToListSheet recipe={recipe} servings={servings} onClose={() => setShowAddToList(false)} />}
 
         <Card>
           <h2 className="mb-1 font-semibold">Zutaten</h2>
@@ -171,6 +179,98 @@ export function RecipeDetailPage() {
         </Button>
       </div>
     </main>
+  )
+}
+
+function dayLabel(day: string) {
+  const date = parseISODate(day)!
+  return `${weekdayName(date).slice(0, 2)}, ${shortDate(date)}`
+}
+
+/** Nur dieses Rezept auf die Liste: für geplante Tage oder ohne Tag mit der gewählten Portionszahl. */
+function AddToListSheet({ recipe, servings, onClose }: { recipe: Recipe; servings: number; onClose: () => void }) {
+  const [days, setDays] = useState<PlannedDay[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+
+  useEffect(() => {
+    upcomingPlanDays(recipe.id, toISODate(new Date()))
+      .then(setDays)
+      .catch(() => {
+        setDays([])
+        if (!navigator.onLine) setError('Dafür wird eine Internetverbindung gebraucht.')
+      })
+  }, [recipe.id])
+
+  async function run(target: Parameters<typeof addRecipeToList>[1]) {
+    setBusy(true)
+    setError(null)
+    try {
+      const count = await addRecipeToList(recipe, target)
+      setDone(count === 1 ? '1 Zutat ist auf der Liste.' : `${count} Zutaten sind auf der Liste.`)
+    } catch (e) {
+      setError(navigator.onLine ? (e instanceof Error ? e.message : String(e)) : 'Dafür wird eine Internetverbindung gebraucht.')
+    }
+    setBusy(false)
+  }
+
+  const planned = days ?? []
+  return (
+    <Sheet title="Auf die Einkaufsliste" onClose={onClose}>
+      <div className="space-y-3">
+        {done ? (
+          <>
+            <p className="rounded-lg bg-emerald-50 p-3 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+              ✓ {done}
+            </p>
+            <Link
+              to="/einkauf"
+              className="flex h-12 items-center justify-center rounded-xl bg-emerald-700 font-medium text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+            >
+              Zur Einkaufsliste
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-stone-500 dark:text-stone-400">
+              Die angehakten Zutaten kommen auf die Liste. Noch offene Artikel dieses Rezepts werden dabei aktualisiert,
+              Erledigtes bleibt.
+            </p>
+            <ErrorText>{error}</ErrorText>
+            {days === null && <p className="text-sm text-stone-500 dark:text-stone-400">Lädt …</p>}
+            {planned.length > 1 && (
+              <Button className="w-full" disabled={busy} onClick={() => run({ days: planned })}>
+                Alle geplanten Tage: {planned.map((d) => dayLabel(d.day).slice(0, 2)).join(', ')}
+              </Button>
+            )}
+            {planned.map((d) => (
+              <Button
+                key={d.id}
+                variant={planned.length > 1 ? 'secondary' : 'primary'}
+                className="w-full justify-between"
+                disabled={busy}
+                onClick={() => run({ days: [d] })}
+              >
+                <span>Für {dayLabel(d.day)}</span>
+                <span className="text-sm font-normal opacity-80">{d.servings ?? recipe.servings} Portionen</span>
+              </Button>
+            ))}
+            {days !== null && (
+              <Button
+                variant={planned.length > 0 ? 'secondary' : 'primary'}
+                className="w-full justify-between"
+                disabled={busy}
+                onClick={() => run({ servings })}
+              >
+                <span>Ohne Tag</span>
+                <span className="text-sm font-normal opacity-80">{servings} Portionen</span>
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+    </Sheet>
   )
 }
 
